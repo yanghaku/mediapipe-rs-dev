@@ -1,0 +1,26 @@
+[package]
+name = "mediapipe-rs"
+version = "0.1.0"
+edition = "2021"
+authors = ["bo.yang@smail.nju.edu.cn"]
+categories = ["Webassembly"]
+keywords = ["Webassembly", "wasm", "neural-network", "inference"]
+license-file = "LICENSE"
+readme = "README.md"
+documentation = "https://docs.rs/mediapipe-rs"
+repository = "https://github.com/yanghaku/mediapipe-rs"
+description = "A Rust library for mediapipe tasks"
+publish = true
+
+include = [
+    "LICENSE",
+    "README.md",
+    "Cargo.toml",
+    "/src",
+]
+
+[dependencies]
+wasi-nn-safe = "0.0.0"
+
+[patch.'crates-io']
+wasi-nn-safe = { path = "../wasi-nn-safe" }

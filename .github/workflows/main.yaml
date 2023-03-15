@@ -1,0 +1,24 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@main
+
+      - name: install curl and rust
+        run: ./scripts/rust-init.sh
+
+      - name: init wasmedge environment
+        run: ./scripts/wasmedge-init.sh
+
+      - name: test
+        run: cargo test --release -- --nocapture
