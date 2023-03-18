@@ -1,0 +1,78 @@
+use crate::postprocess::QuantizationParameters;
+use crate::preprocess::vision::{DataLayout, ImageToTensorInfo};
+use crate::{Error, GraphEncoding, TensorType};
+
+/// Abstraction for model resources.
+/// Users can use this trait to get information for models, such as data layout, model backend, etc.
+/// Now it supports ```TensorFlowLite``` backend.
+pub trait ModelResourceTrait {
+    fn model_backend(&self) -> GraphEncoding;
+
+    fn data_layout(&self) -> DataLayout;
+
+    fn input_tensor_count(&self) -> usize;
+
+    fn output_tensor_count(&self) -> usize;
+
+    fn input_tensor_type(&self, index: usize) -> Option<TensorType>;
+
+    fn output_tensor_type(&self, index: usize) -> Option<TensorType>;
+
+    fn input_tensor_shape(&self, index: usize) -> Option<&[usize]>;
+
+    fn output_tensor_shape(&self, index: usize) -> Option<&[usize]>;
+
+    fn output_tensor_byte_size(&self, index: usize) -> Option<usize>;
+
+    fn output_tensor_quantization_parameters(&self, index: usize)
+        -> Option<QuantizationParameters>;
+
+    fn image_to_tensor_info(&self, input_index: usize) -> Option<&ImageToTensorInfo>;
+}
+
+#[inline]
+pub(crate) fn parse_model<'buf>(
+    buf: &'buf [u8],
+) -> Result<Box<dyn ModelResourceTrait + 'buf>, Error> {
+    if buf.len() < 8 {
+        return Err(Error::ModelParseError(format!(
+            "Model buffer is tool short!"
+        )));
+    }
+
+    match &buf[..8] {
+        tflite::TfLiteModelResource::HEAD_MAGIC => {
+            let tf_model_resource = tflite::TfLiteModelResource::new(buf)?;
+            Ok(Box::new(tf_model_resource))
+        }
+        _ => Err(Error::ModelParseError(format!(
+            "Cannot parse this head magic `{:?}`",
+            &buf[..8]
+        ))),
+    }
+}
+
+macro_rules! model_resource_check_and_get_impl {
+    ( $model_resource:expr, $func_name:ident, $index:expr ) => {
+        $model_resource
+            .$func_name($index)
+            .ok_or(crate::Error::ModelInconsistentError(format!(
+                "Model resource has no information for `{}` at index `{}`.",
+                stringify!($func_name),
+                $index
+            )))?
+    };
+}
+
+macro_rules! tensor_byte_size {
+    ($tensor_type:expr) => {
+        match $tensor_type {
+            crate::TensorType::F32 => 4,
+            crate::TensorType::U8 => 1,
+            crate::TensorType::I32 => 4,
+            crate::TensorType::F16 => 2,
+        }
+    };
+}
+
+mod tflite;
