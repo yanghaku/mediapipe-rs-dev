@@ -1,11 +1,15 @@
-mod generated;
+use std::collections::HashMap;
+
+use generated::*;
+
+use crate::preprocess::vision::ImageColorSpaceType;
 
 use super::{
     DataLayout, Error, GraphEncoding, ImageToTensorInfo, ModelResourceTrait,
     QuantizationParameters, TensorType,
 };
-use crate::preprocess::vision::ImageColorSpaceType;
-use generated::*;
+
+mod generated;
 
 pub(crate) struct TfLiteModelResource<'buf> {
     model: tflite::Model<'buf>,
@@ -17,11 +21,12 @@ pub(crate) struct TfLiteModelResource<'buf> {
     output_bytes_size: Vec<usize>,
     output_quantization_parameters: Vec<Option<QuantizationParameters>>,
     image_to_tensor_info: Vec<Option<ImageToTensorInfo>>,
+    output_name_map: HashMap<&'buf str, usize>,
 }
 
 impl<'buf> TfLiteModelResource<'buf> {
-    // 1c000000 TFL3
-    pub(super) const HEAD_MAGIC: &'static [u8] = &[0x1c, 0x00, 0x00, 0x00, 0x54, 0x46, 0x4c, 0x33];
+    // TFL3
+    pub(super) const HEAD_MAGIC: &'static [u8] = &[0x54, 0x46, 0x4c, 0x33];
 
     const METADATA_NAME: &'static str = "TFLITE_METADATA";
 
@@ -37,6 +42,7 @@ impl<'buf> TfLiteModelResource<'buf> {
             output_bytes_size: Vec::new(),
             output_quantization_parameters: Vec::new(),
             image_to_tensor_info: Vec::new(),
+            output_name_map: Default::default(),
         };
         _self.parse_subgraph()?;
         _self.parse_model_metadata()?;
@@ -63,8 +69,8 @@ impl<'buf> TfLiteModelResource<'buf> {
         if let (Some(inputs), Some(outputs), Some(tensors)) =
             (subgraph.inputs(), subgraph.outputs(), subgraph.tensors())
         {
-            self.input_shape = Vec::with_capacity(inputs.len());
-            self.input_types = Vec::with_capacity(inputs.len());
+            self.input_shape.reserve(inputs.len());
+            self.input_types.reserve(inputs.len());
             for i in 0..inputs.len() {
                 let index = inputs.get(i) as usize;
                 if index >= tensors.len() {
@@ -91,8 +97,8 @@ impl<'buf> TfLiteModelResource<'buf> {
                 }
             }
 
-            self.output_shape = Vec::with_capacity(outputs.len());
-            self.output_types = Vec::with_capacity(outputs.len());
+            self.output_shape.reserve(outputs.len());
+            self.output_types.reserve(outputs.len());
             for i in 0..outputs.len() {
                 let index = outputs.get(i) as usize;
                 if index >= tensors.len() {
@@ -263,6 +269,16 @@ impl<'buf> TfLiteModelResource<'buf> {
                 }
             }
         }
+        if let Some(output_tensors) = subgraph.output_tensor_metadata() {
+            let len = output_tensors.len();
+            for i in 0..len {
+                let output = output_tensors.get(i);
+                if let Some(name) = output.name() {
+                    self.output_name_map.insert(name, i);
+                }
+                // todo: label file
+            }
+        }
         Ok(())
     }
 
@@ -318,6 +334,10 @@ impl<'buf> ModelResourceTrait for TfLiteModelResource<'buf> {
         self.output_bytes_size.get(index).cloned()
     }
 
+    fn output_tensor_name_to_index(&self, name: &'static str) -> Option<usize> {
+        self.output_name_map.get(name).cloned()
+    }
+
     fn output_tensor_quantization_parameters(
         &self,
         index: usize,
@@ -327,6 +347,32 @@ impl<'buf> ModelResourceTrait for TfLiteModelResource<'buf> {
         } else {
             None
         }
+    }
+
+    fn output_bounding_box_properties(&self, index: usize, slice: &mut [usize]) -> bool {
+        if let Some(m) = self.metadata {
+            if let Some(s) = m.subgraph_metadata() {
+                if s.len() > 0 {
+                    if let Some(o) = s.get(0).output_tensor_metadata() {
+                        if index < o.len() {
+                            if let Some(t) = o.get(index).content() {
+                                if let Some(t) = t.content_properties_as_bounding_box_properties() {
+                                    if let Some(i) = t.index() {
+                                        if i.len() == 4 {
+                                            for j in 0..4 {
+                                                slice[j] = i.get(j) as usize;
+                                            }
+                                            return true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        false
     }
 
     fn image_to_tensor_info(&self, input_index: usize) -> Option<&ImageToTensorInfo> {

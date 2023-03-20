@@ -1,31 +1,5 @@
-use super::super::ops::Dequantize;
-use crate::model_resource::ModelResourceTrait;
-use crate::tasks::common::ClassifierBuilder;
-use crate::TensorType;
+use super::super::Category;
 use std::fmt::{Display, Formatter};
-
-/// Defines a single classification result.
-///
-/// The label maps packed into the TFLite Model Metadata [1] are used to populate
-/// the 'category_name' and 'display_name' fields.
-///
-/// [1]: https://www.tensorflow.org/lite/convert/metadata
-#[derive(Debug)]
-pub struct Category {
-    /// The index of the category in the classification model output.
-    pub index: i32,
-
-    /// The score for this category, e.g. (but not necessarily) a probability in \[0,1\].
-    pub score: f32,
-
-    /// The optional ID for the category, read from the label map packed in the
-    /// TFLite Model Metadata if present. Not necessarily human-readable.
-    pub category_name: Option<String>,
-
-    /// The optional human-readable name for the category, read from the label map
-    /// packed in the TFLite Model Metadata if present.
-    pub display_name: Option<String>,
-}
 
 /// Defines classification results for a given classifier head.
 #[derive(Debug)]
@@ -69,104 +43,17 @@ impl Display for ClassificationResult {
             return writeln!(f, "  No Classification");
         }
         for i in 0..self.classifications.len() {
-            writeln!(f, "  Classifications #{}:", i)?;
+            writeln!(f, "  Classification #{}:", i)?;
             let c = self.classifications.get(i).unwrap();
             if let Some(ref name) = c.head_name {
-                writeln!(f, "    head name: {}", name)?;
-                writeln!(f, "    head index: {}", c.head_index)?;
+                writeln!(f, "    Head name: {}", name)?;
+                writeln!(f, "    Head index: {}", c.head_index)?;
             }
             for j in 0..c.categories.len() {
-                writeln!(f, "    category #{}:", j)?;
-                let category = c.categories.get(j).unwrap();
-                if let Some(ref name) = category.category_name {
-                    writeln!(f, "      category name: \"{}\"", name)?;
-                } else {
-                    writeln!(f, "      category name: None")?;
-                }
-                if let Some(ref name) = category.display_name {
-                    writeln!(f, "      category name: \"{}\"", name)?;
-                } else {
-                    writeln!(f, "      category name: None")?;
-                }
-                writeln!(f, "      score: {}", category.score)?;
-                writeln!(f, "      index: {}", category.index)?;
+                writeln!(f, "    Category #{}:", j)?;
+                write!(f, "{}", c.categories.get(j).unwrap())?;
             }
         }
-        writeln!(f, "")
-    }
-}
-
-impl ClassificationResult {
-    pub(crate) fn new(
-        output_index: usize,
-        output_buffer: &[u8],
-        model_resource: &Box<dyn ModelResourceTrait>,
-        options: &ClassifierBuilder,
-    ) -> Self {
-        let mut categories = match model_resource.output_tensor_type(output_index).unwrap() {
-            TensorType::U8 => {
-                if let Some(q) = model_resource.output_tensor_quantization_parameters(output_index)
-                {
-                    let f = output_buffer.dequantize(q);
-                    let mut c = Vec::with_capacity(f.len());
-                    for i in 0..f.len() {
-                        c.push(Category {
-                            score: f[i],
-                            index: i as i32,
-                            display_name: None,
-                            category_name: None,
-                        })
-                    }
-                    c
-                } else {
-                    let mut c = Vec::with_capacity(output_buffer.len());
-                    for i in 0..output_buffer.len() {
-                        c.push(Category {
-                            score: output_buffer[i] as f32,
-                            index: i as i32,
-                            display_name: None,
-                            category_name: None,
-                        })
-                    }
-                    c
-                }
-            }
-            TensorType::F32 => {
-                let buf = unsafe {
-                    core::slice::from_raw_parts(
-                        output_buffer.as_ptr() as *const f32,
-                        output_buffer.len() >> 2,
-                    )
-                };
-                let mut c = Vec::with_capacity(buf.len());
-                for i in 0..buf.len() {
-                    c.push(Category {
-                        score: buf[i],
-                        index: i as i32,
-                        display_name: None,
-                        category_name: None,
-                    })
-                }
-                c
-            }
-            _ => unimplemented!(),
-        };
-
-        categories.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
-        if options.max_results > 0 {
-            let max_results = options.max_results as usize;
-            if max_results < categories.len() {
-                categories.drain(max_results as usize..);
-            }
-        }
-
-        Self {
-            classifications: vec![Classifications {
-                head_index: 0,
-                head_name: None,
-                categories,
-            }],
-            timestamp_ms: None,
-        }
+        Ok(())
     }
 }

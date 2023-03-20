@@ -33,7 +33,9 @@ pub struct ImageToTensorInfo {
 
 mod image_crate_type_impl {
     use super::*;
-    use image::{DynamicImage, EncodableLayout, RgbImage};
+    use image::{imageops, DynamicImage, EncodableLayout, RgbImage};
+
+    const IMAGE_RESIZE_FILTER: imageops::FilterType = imageops::FilterType::Gaussian;
 
     macro_rules! get_rgb_mean_std_from_info {
         ( $info:ident ) => {{
@@ -64,11 +66,7 @@ mod image_crate_type_impl {
             // need resize
             if info.width != self.width() || info.height != self.height() {
                 dynamic_image_into_tensor(
-                    self.resize_exact(
-                        info.width,
-                        info.height,
-                        image::imageops::FilterType::Triangle,
-                    ),
+                    self.resize_exact(info.width, info.height, IMAGE_RESIZE_FILTER),
                     input_index,
                     model_resource,
                     info,
@@ -111,11 +109,8 @@ mod image_crate_type_impl {
                 // must resize or change to gray
                 let mut dynamic_img = DynamicImage::from(self.clone());
                 if info.width != self.width() || info.height != self.height() {
-                    dynamic_img = dynamic_img.resize_exact(
-                        info.width,
-                        info.height,
-                        image::imageops::FilterType::Triangle,
-                    );
+                    dynamic_img =
+                        dynamic_img.resize_exact(info.width, info.height, IMAGE_RESIZE_FILTER);
                 }
                 return dynamic_image_into_tensor(dynamic_img, input_index, model_resource, info);
             }

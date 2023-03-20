@@ -28,7 +28,7 @@ impl Default for ClassifierBuilder {
         Self {
             display_names_locale: "en".into(),
             max_results: -1,
-            score_threshold: 0.0f32,
+            score_threshold: -1.0f32,
             category_allow_list: Vec::new(),
             category_deny_list: Vec::new(),
         }

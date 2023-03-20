@@ -24,8 +24,12 @@ pub trait ModelResourceTrait {
 
     fn output_tensor_byte_size(&self, index: usize) -> Option<usize>;
 
+    fn output_tensor_name_to_index(&self, name: &'static str) -> Option<usize>;
+
     fn output_tensor_quantization_parameters(&self, index: usize)
         -> Option<QuantizationParameters>;
+
+    fn output_bounding_box_properties(&self, index: usize, slice: &mut [usize]) -> bool;
 
     fn image_to_tensor_info(&self, input_index: usize) -> Option<&ImageToTensorInfo>;
 }
@@ -40,7 +44,7 @@ pub(crate) fn parse_model<'buf>(
         )));
     }
 
-    match &buf[..8] {
+    match &buf[4..8] {
         tflite::TfLiteModelResource::HEAD_MAGIC => {
             let tf_model_resource = tflite::TfLiteModelResource::new(buf)?;
             Ok(Box::new(tf_model_resource))
@@ -71,6 +75,17 @@ macro_rules! tensor_byte_size {
             crate::TensorType::U8 => 1,
             crate::TensorType::I32 => 4,
             crate::TensorType::F16 => 2,
+        }
+    };
+}
+
+macro_rules! check_quantization_parameters {
+    ( $tensor_type:ident, $q:ident, $i:expr ) => {
+        if $tensor_type == crate::TensorType::U8 && $q.is_none() {
+            return Err(crate::Error::ModelInconsistentError(format!(
+                "Missing tensor quantization parameters for output `{}`",
+                $i
+            )));
         }
     };
 }

@@ -1,11 +1,11 @@
 mod builder;
+pub use builder::ImageClassifierBuilder;
 
 use crate::model_resource::ModelResourceTrait;
+use crate::postprocess::sessions::ClassificationSession;
 use crate::postprocess::ClassificationResult;
 use crate::preprocess::ToTensor;
-use crate::{Error, Graph, GraphExecutionContext};
-
-pub use builder::ImageClassifierBuilder;
+use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
 /// Performs classification on images.
 pub struct ImageClassifier {
@@ -21,14 +21,31 @@ impl ImageClassifier {
 
     #[inline(always)]
     pub fn new_session(&self) -> Result<ImageClassifierSession, Error> {
+        let input_tensor_type =
+            model_resource_check_and_get_impl!(self.model_resource, input_tensor_type, 0);
+        let input_tensor_shape =
+            model_resource_check_and_get_impl!(self.model_resource, input_tensor_shape, 0);
         let output_byte_size =
             model_resource_check_and_get_impl!(self.model_resource, output_tensor_byte_size, 0);
+        let output_tensor_type =
+            model_resource_check_and_get_impl!(self.model_resource, output_tensor_type, 0);
+        let quantization_parameters = self.model_resource.output_tensor_quantization_parameters(0);
+        check_quantization_parameters!(output_tensor_type, quantization_parameters, 0);
 
         let execution_ctx = self.graph.init_execution_context()?;
+        let mut classification_session =
+            ClassificationSession::new(&self.build_info.classifier_builder);
+        classification_session.add_output_cfg(
+            vec![0; output_byte_size],
+            output_tensor_type,
+            quantization_parameters,
+        );
         Ok(ImageClassifierSession {
             classifier: self,
             execution_ctx,
-            output_buffer: vec![0; output_byte_size],
+            classification_session,
+            input_tensor_type,
+            input_tensor_shape,
         })
     }
 
@@ -52,7 +69,11 @@ impl ImageClassifier {
 pub struct ImageClassifierSession<'a> {
     classifier: &'a ImageClassifier,
     execution_ctx: GraphExecutionContext<'a>,
-    output_buffer: Vec<u8>,
+    classification_session: ClassificationSession<'a>,
+
+    // only one input and one output
+    input_tensor_type: TensorType,
+    input_tensor_shape: &'a [usize],
 }
 
 impl<'a> ImageClassifierSession<'a> {
@@ -61,35 +82,25 @@ impl<'a> ImageClassifierSession<'a> {
         input: &impl ToTensor<'t>,
     ) -> Result<ClassificationResult, Error> {
         let tensor = input.to_tensor(0, &self.classifier.model_resource)?;
-        let tensor_type = model_resource_check_and_get_impl!(
-            self.classifier.model_resource,
-            input_tensor_type,
-            0
-        );
-        let tensor_shape = model_resource_check_and_get_impl!(
-            self.classifier.model_resource,
-            input_tensor_shape,
-            0
-        );
 
-        self.execution_ctx
-            .set_input(0, tensor_type, tensor_shape, tensor.as_ref())?;
+        self.execution_ctx.set_input(
+            0,
+            self.input_tensor_type,
+            self.input_tensor_shape,
+            tensor.as_ref(),
+        )?;
         self.execution_ctx.compute()?;
 
-        let output_size = self.execution_ctx.get_output(0, &mut self.output_buffer)?;
-        if output_size != self.output_buffer.len() {
+        let output_buffer = self.classification_session.output_buffer(0);
+        let output_size = self.execution_ctx.get_output(0, output_buffer)?;
+        if output_size != output_buffer.len() {
             return Err(Error::ModelInconsistentError(format!(
                 "Model output bytes size is `{}`, but got `{}`",
-                self.output_buffer.len(),
+                output_buffer.len(),
                 output_size
             )));
         }
 
-        Ok(ClassificationResult::new(
-            0,
-            self.output_buffer.as_slice(),
-            &self.classifier.model_resource,
-            &self.classifier.build_info.classifier_builder,
-        ))
+        Ok(self.classification_session.result())
     }
 }

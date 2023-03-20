@@ -4,8 +4,7 @@ const MODEL_1: &'static str = "assets/models/image_classification/efficientnet_l
 const MODEL_2: &'static str = "assets/models/image_classification/efficientnet_lite0_uint8.tflite";
 const MODEL_3: &'static str = "assets/models/image_classification/efficientnet_lite2_fp32.tflite";
 const MODEL_4: &'static str = "assets/models/image_classification/efficientnet_lite2_uint8.tflite";
-const IMG_1: &'static str = "assets/testdata/img/cat.png";
-const IMG_2: &'static str = "assets/testdata/img/banana.jpg";
+const IMG: &'static str = "assets/testdata/img/banana.jpg";
 
 #[test]
 fn test_image_classification_model_1() {
@@ -31,13 +30,39 @@ fn image_classification_task_run(model_asset_path: String) {
     let image_classifier = ImageClassifierBuilder::new()
         .model_asset_path(model_asset_path)
         .cpu()
-        .max_results(5)
+        .max_results(2)
         .finalize()
         .unwrap();
 
-    let mut session = image_classifier.new_session().unwrap();
-    let res_1 = session.classify(&image::open(IMG_1).unwrap()).unwrap();
-    println!("{}", res_1);
-    let res_2 = session.classify(&image::open(IMG_2).unwrap()).unwrap();
-    println!("{}", res_2);
+    let res = image_classifier
+        .classify(&image::open(IMG).unwrap())
+        .unwrap();
+    eprintln!("{}", res);
+    // banana: 954
+    assert_eq!(
+        res.classifications
+            .get(0)
+            .unwrap()
+            .categories
+            .get(0)
+            .unwrap()
+            .index,
+        954
+    );
+}
+
+#[test]
+fn test_bird_from_tf_hub() {
+    const MODEL: &'static str =
+        "assets/models/image_classification/lite-model_aiy_vision_classifier_birds_V1_3.tflite";
+    const IMAGE: &'static str = "assets/testdata/img/bird.jpg";
+
+    let res = ImageClassifierBuilder::new()
+        .model_asset_path(MODEL.to_string())
+        .max_results(2)
+        .finalize()
+        .unwrap()
+        .classify(&image::open(IMAGE).unwrap())
+        .unwrap();
+    eprintln!("{}", res);
 }
