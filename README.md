@@ -25,6 +25,15 @@
 * Support **multiple model formats**, such as TfLite, PyTorch, and Onnx.
   The library can **detect it when loading models**.
 
+### Status
+
+* [x] Object Detection
+* [x] Image Classification
+* [ ] Gesture Recognition
+* [ ] Hand Landmark Detection
+* [ ] Audio Classification
+* [ ] Text Classification
+
 ## Examples
 
 ### Image classification

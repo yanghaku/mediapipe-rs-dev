@@ -18,6 +18,9 @@ pub enum Error {
     #[error("Model Binary Parse Error: {0}")]
     ModelParseError(String),
 
+    #[error("ZIP File Parse Error: {0}")]
+    ZipFileParseError(String),
+
     #[error("Model Inconsistent Error: {0}")]
     ModelInconsistentError(String),
 }
