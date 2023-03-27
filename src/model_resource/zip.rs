@@ -110,53 +110,73 @@ impl<'buf> EndOfCentralDirectoryRecord<'buf> {
         &self.buf[Self::COMMENT_POS..Self::COMMENT_POS + self.comment_length() as usize]
     }
 
-    #[inline]
-    fn new(buf: &'buf [u8]) -> Result<Self, Error> {
-        if buf.len() < Self::MIN_SIZE {
-            return Err(Error::ZipFileParseError(format!(
-                "Zip size is too short {}",
-                buf.len()
-            )));
-        }
-        let mut start_pos = buf.len() - Self::MIN_SIZE;
+    #[inline(always)]
+    fn try_find_start_pos(buf: &'buf [u8]) -> usize {
+        let mut start_pos = match buf.len().checked_sub(Self::MIN_SIZE) {
+            None => {
+                return buf.len();
+            }
+            Some(p) => p,
+        };
         loop {
             if &buf[start_pos..start_pos + 4] == Self::HEAD_SIGNATURE {
-                let res = Self {
-                    buf: &buf[start_pos..],
-                };
-                if res.number_of_this_disk() != 0
-                    || res.disk_where_central_directory_starts() != 0
-                    || res.number_of_central_directory_records_on_this_disk()
-                        != res.total_number_of_central_directory_records()
-                {
-                    return Err(Error::ZipFileParseError(
-                        "Unsupported multi-disk zip file.".into(),
-                    ));
-                }
-                let central_directory = res.offset_of_start_of_central_directory() as usize;
-                if central_directory >= start_pos
-                    || central_directory + res.size_of_central_directory() as usize > buf.len()
-                {
-                    return Err(Error::ZipFileParseError(
-                        "Central directory information error".into(),
-                    ));
-                }
-                if start_pos + Self::COMMENT_POS + res.comment_length() as usize > buf.len() {
-                    return Err(Error::ZipFileParseError(
-                        "Comment length is too long".into(),
-                    ));
-                }
-                return Ok(res);
+                return start_pos;
             }
             start_pos = match start_pos.checked_sub(1) {
                 None => {
-                    break Err(Error::ZipFileParseError(
-                        "Cannot find end of central directory record!".into(),
-                    ));
+                    return buf.len();
                 }
                 Some(p) => p,
             };
         }
+    }
+
+    #[inline(always)]
+    fn new_with_start_pos(buf: &'buf [u8], start_pos: usize) -> Result<Self, Error> {
+        if start_pos >= buf.len() {
+            return Err(Error::ZipFileParseError(format!(
+                "End of central directory start pos error `{}` >= `{}`",
+                start_pos,
+                buf.len()
+            )));
+        }
+        let res = Self {
+            buf: &buf[start_pos..],
+        };
+        if res.number_of_this_disk() != 0
+            || res.disk_where_central_directory_starts() != 0
+            || res.number_of_central_directory_records_on_this_disk()
+                != res.total_number_of_central_directory_records()
+        {
+            return Err(Error::ZipFileParseError(
+                "Unsupported multi-disk zip file.".into(),
+            ));
+        }
+        let central_directory = res.offset_of_start_of_central_directory() as usize;
+        if central_directory >= start_pos
+            || central_directory + res.size_of_central_directory() as usize > buf.len()
+        {
+            return Err(Error::ZipFileParseError(
+                "Central directory information error".into(),
+            ));
+        }
+        if start_pos + Self::COMMENT_POS + res.comment_length() as usize > buf.len() {
+            return Err(Error::ZipFileParseError(
+                "Comment length is too long".into(),
+            ));
+        }
+        return Ok(res);
+    }
+
+    #[inline]
+    fn new(buf: &'buf [u8]) -> Result<Self, Error> {
+        let start_pos = Self::try_find_start_pos(buf);
+        if start_pos == 0 {
+            return Err(Error::ZipFileParseError(
+                "Cannot find end of central directory.".into(),
+            ));
+        }
+        Self::new_with_start_pos(buf, start_pos)
     }
 }
 
@@ -510,8 +530,28 @@ pub(super) struct ZipFiles<'buf> {
 
 impl<'buf> ZipFiles<'buf> {
     #[inline]
+    pub fn try_new(buf: &'buf [u8]) -> Result<Option<Self>, Error> {
+        let start_pos = EndOfCentralDirectoryRecord::try_find_start_pos(buf);
+        if start_pos == buf.len() {
+            return Ok(None);
+        }
+        Self::new_with_start_pos(buf, start_pos).map(|z| Some(z))
+    }
+
+    #[inline]
     pub fn new(buf: &'buf [u8]) -> Result<Self, Error> {
-        let r = EndOfCentralDirectoryRecord::new(buf)?;
+        let start_pos = EndOfCentralDirectoryRecord::try_find_start_pos(buf);
+        if start_pos == buf.len() {
+            return Err(Error::ZipFileParseError(
+                "Cannot find end of central directory.".into(),
+            ));
+        }
+        Self::new_with_start_pos(buf, start_pos)
+    }
+
+    #[inline]
+    fn new_with_start_pos(buf: &'buf [u8], start_pos: usize) -> Result<Self, Error> {
+        let r = EndOfCentralDirectoryRecord::new_with_start_pos(buf, start_pos)?;
         let num = r.total_number_of_central_directory_records();
         let mut start = r.offset_of_start_of_central_directory() as usize;
         let end = r.size_of_central_directory() as usize + start;

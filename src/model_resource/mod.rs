@@ -29,6 +29,12 @@ pub trait ModelResourceTrait {
     fn output_tensor_quantization_parameters(&self, index: usize)
         -> Option<QuantizationParameters>;
 
+    fn output_tensor_labels_locale(
+        &self,
+        index: usize,
+        locale: &str,
+    ) -> Result<(&[u8], Option<&[u8]>), Error>;
+
     fn output_bounding_box_properties(&self, index: usize, slice: &mut [usize]) -> bool;
 
     fn image_to_tensor_info(&self, input_index: usize) -> Option<&ImageToTensorInfo>;

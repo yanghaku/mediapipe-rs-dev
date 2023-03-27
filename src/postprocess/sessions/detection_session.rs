@@ -43,7 +43,7 @@ macro_rules! box_x_max {
 }
 
 pub(crate) struct DetectionSession<'a> {
-    options: &'a ClassifierBuilder,
+    categories_filter: CategoriesFilter<'a>,
     anchors: Option<Vec<Anchor>>,
     box_indices: [usize; 4],
     box_format: DetectionBoxFormat,
@@ -57,14 +57,15 @@ pub(crate) struct DetectionSession<'a> {
 impl<'a> DetectionSession<'a> {
     #[inline]
     pub(crate) fn new(
-        options: &'a ClassifierBuilder,
+        categories_filter: CategoriesFilter<'a>,
+        max_results: i32,
         bound_box_properties: &'a [usize; 4],
         location_buf: (TensorType, Option<QuantizationParameters>),
         categories_buf: (TensorType, Option<QuantizationParameters>),
         score_buf: (TensorType, Option<QuantizationParameters>),
     ) -> Self {
         Self {
-            options,
+            categories_filter,
             anchors: None,
             box_format: Default::default(),
             box_indices: [
@@ -73,7 +74,7 @@ impl<'a> DetectionSession<'a> {
                 bound_box_properties[3], // y_max
                 bound_box_properties[2], // x_max
             ],
-            nms: NonMaxSuppressionBuilder::new(options.max_results, options.score_threshold),
+            nms: NonMaxSuppressionBuilder::new(max_results),
             location_buf: empty_output_buffer!(location_buf),
             categories_buf: empty_output_buffer!(categories_buf),
             score_buf: empty_output_buffer!(score_buf),
@@ -116,15 +117,18 @@ impl<'a> DetectionSession<'a> {
 
         let mut detections = Vec::with_capacity(num_boxes);
         let mut index = 0;
-        let score_threshold = self.options.score_threshold;
 
         for i in 0..num_boxes {
-            let score = scores[i];
-            // todo: allow_list
-            if score < score_threshold {
-                index += 4 + (key_point_num << 1);
-                continue;
-            }
+            let category = match self
+                .categories_filter
+                .new_category(category[i] as usize, scores[i])
+            {
+                Some(c) => c,
+                None => {
+                    index += 4 + (key_point_num << 1);
+                    continue;
+                }
+            };
 
             let rect = Rect {
                 left: box_x_min!(self, location, index),
@@ -138,12 +142,7 @@ impl<'a> DetectionSession<'a> {
             index += key_point_num << 1;
 
             detections.push(Detection {
-                categories: vec![Category {
-                    index: category[i] as i32,
-                    score: scores[i],
-                    category_name: None,
-                    display_name: None,
-                }],
+                categories: vec![category],
                 bounding_box: rect,
                 key_points: None,
             });

@@ -5,15 +5,20 @@ use generated::*;
 use crate::preprocess::vision::ImageColorSpaceType;
 
 use super::{
-    DataLayout, Error, GraphEncoding, ImageToTensorInfo, ModelResourceTrait,
+    zip::ZipFiles, DataLayout, Error, GraphEncoding, ImageToTensorInfo, ModelResourceTrait,
     QuantizationParameters, TensorType,
 };
 
 mod generated;
 
 pub(crate) struct TfLiteModelResource<'buf> {
-    model: tflite::Model<'buf>,
-    metadata: Option<tflite_metadata::ModelMetadata<'buf>>,
+    output_tensor_metadata: Option<
+        flatbuffers::Vector<
+            'buf,
+            flatbuffers::ForwardsUOffset<tflite_metadata::TensorMetadata<'buf>>,
+        >,
+    >,
+
     input_shape: Vec<Vec<usize>>,
     output_shape: Vec<Vec<usize>>,
     input_types: Vec<TensorType>,
@@ -22,6 +27,7 @@ pub(crate) struct TfLiteModelResource<'buf> {
     output_quantization_parameters: Vec<Option<QuantizationParameters>>,
     image_to_tensor_info: Vec<Option<ImageToTensorInfo>>,
     output_name_map: HashMap<&'buf str, usize>,
+    associated_files: Option<ZipFiles<'buf>>,
 }
 
 impl<'buf> TfLiteModelResource<'buf> {
@@ -31,10 +37,10 @@ impl<'buf> TfLiteModelResource<'buf> {
     const METADATA_NAME: &'static str = "TFLITE_METADATA";
 
     pub(super) fn new(buf: &'buf [u8]) -> Result<Self, Error> {
+        let associated_files = ZipFiles::try_new(buf)?;
         let model = tflite::root_as_model(buf)?;
         let mut _self = Self {
-            model,
-            metadata: None,
+            output_tensor_metadata: None,
             input_shape: Vec::new(),
             output_shape: Vec::new(),
             input_types: Vec::new(),
@@ -43,18 +49,19 @@ impl<'buf> TfLiteModelResource<'buf> {
             output_quantization_parameters: Vec::new(),
             image_to_tensor_info: Vec::new(),
             output_name_map: Default::default(),
+            associated_files,
         };
-        _self.parse_subgraph()?;
-        _self.parse_model_metadata()?;
-        if _self.metadata.is_some() {
-            _self.parse_model_metadata_content()?;
+        _self.parse_subgraph(&model)?;
+        let metadata = Self::parse_model_metadata(&model)?;
+        if let Some(metadata) = metadata {
+            _self.parse_model_metadata_content(&metadata)?;
         }
         Ok(_self)
     }
 
     #[inline]
-    fn parse_subgraph(&mut self) -> Result<(), Error> {
-        let subgraph = match self.model.subgraphs() {
+    fn parse_subgraph(&mut self, model: &tflite::Model<'buf>) -> Result<(), Error> {
+        let subgraph = match model.subgraphs() {
             Some(s) => {
                 if s.len() < 1 {
                     return Err(Error::ModelParseError("Model subgraph is empty".into()));
@@ -155,10 +162,10 @@ impl<'buf> TfLiteModelResource<'buf> {
     }
 
     #[inline]
-    fn parse_model_metadata(&mut self) -> Result<(), Error> {
-        if let (Some(metadata_vec), Some(model_buffers)) =
-            (self.model.metadata(), self.model.buffers())
-        {
+    fn parse_model_metadata(
+        model: &tflite::Model<'buf>,
+    ) -> Result<Option<tflite_metadata::ModelMetadata<'buf>>, Error> {
+        if let (Some(metadata_vec), Some(model_buffers)) = (model.metadata(), model.buffers()) {
             for i in 0..metadata_vec.len() {
                 let m = metadata_vec.get(i);
                 if m.name() == Some(Self::METADATA_NAME) {
@@ -172,8 +179,7 @@ impl<'buf> TfLiteModelResource<'buf> {
                                     data_option.unwrap().bytes(),
                                 )
                             };
-                            self.metadata = Some(metadata);
-                            return Ok(());
+                            return Ok(Some(metadata));
                         }
                     }
 
@@ -184,12 +190,15 @@ impl<'buf> TfLiteModelResource<'buf> {
                 }
             }
         }
-        Ok(())
+        Ok(None)
     }
 
     #[inline]
-    fn parse_model_metadata_content(&mut self) -> Result<(), Error> {
-        let subgraph = match self.metadata.unwrap().subgraph_metadata() {
+    fn parse_model_metadata_content(
+        &mut self,
+        metadata: &tflite_metadata::ModelMetadata<'buf>,
+    ) -> Result<(), Error> {
+        let subgraph = match metadata.subgraph_metadata() {
             Some(s) => {
                 if s.len() < 1 {
                     return Ok(());
@@ -269,14 +278,14 @@ impl<'buf> TfLiteModelResource<'buf> {
                 }
             }
         }
-        if let Some(output_tensors) = subgraph.output_tensor_metadata() {
+        self.output_tensor_metadata = subgraph.output_tensor_metadata();
+        if let Some(output_tensors) = self.output_tensor_metadata {
             let len = output_tensors.len();
             for i in 0..len {
                 let output = output_tensors.get(i);
                 if let Some(name) = output.name() {
                     self.output_name_map.insert(name, i);
                 }
-                // todo: label file
             }
         }
         Ok(())
@@ -349,23 +358,79 @@ impl<'buf> ModelResourceTrait for TfLiteModelResource<'buf> {
         }
     }
 
-    fn output_bounding_box_properties(&self, index: usize, slice: &mut [usize]) -> bool {
-        if let Some(m) = self.metadata {
-            if let Some(s) = m.subgraph_metadata() {
-                if s.len() > 0 {
-                    if let Some(o) = s.get(0).output_tensor_metadata() {
-                        if index < o.len() {
-                            if let Some(t) = o.get(index).content() {
-                                if let Some(t) = t.content_properties_as_bounding_box_properties() {
-                                    if let Some(i) = t.index() {
-                                        if i.len() == 4 {
-                                            for j in 0..4 {
-                                                slice[j] = i.get(j) as usize;
-                                            }
-                                            return true;
-                                        }
-                                    }
+    fn output_tensor_labels_locale(
+        &self,
+        index: usize,
+        locale_name: &str,
+    ) -> Result<(&[u8], Option<&[u8]>), Error> {
+        let mut l = None;
+        let mut locale = None;
+        if let Some(o) = self.output_tensor_metadata {
+            if index < o.len() {
+                if let Some(files) = o.get(index).associated_files() {
+                    for f in files.iter() {
+                        let tp = f.type_();
+                        if tp == tflite_metadata::AssociatedFileType::TENSOR_AXIS_LABELS
+                            || tp == tflite_metadata::AssociatedFileType::TENSOR_VALUE_LABELS
+                        {
+                            let file_name = match f.name() {
+                                Some(n) => n,
+                                None => {
+                                    return Err(Error::ModelParseError(format!(
+                                        "Cannot find associated file's name"
+                                    )))
                                 }
+                            };
+                            if self.associated_files.is_none() {
+                                return Err(Error::ModelParseError(
+                                    "No associated files have been found in model asset.".into(),
+                                ));
+                            }
+                            let l_ref = if let Some(name) = f.locale() {
+                                if name != locale_name {
+                                    continue;
+                                }
+                                &mut locale
+                            } else {
+                                &mut l
+                            };
+                            match self.associated_files.as_ref().unwrap().get_file(file_name) {
+                                Some(c) => *l_ref = Some(c),
+                                None => {
+                                    return Err(Error::ModelParseError(format!(
+                                        "Cannot find associated file `{}`",
+                                        file_name
+                                    )))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if l.is_none() {
+            return if locale.is_some() {
+                Ok((locale.unwrap(), locale))
+            } else {
+                Err(Error::ModelInconsistentError(
+                    "Missing model label file information.".into(),
+                ))
+            };
+        }
+        Ok((l.unwrap(), locale))
+    }
+
+    fn output_bounding_box_properties(&self, index: usize, slice: &mut [usize]) -> bool {
+        if let Some(o) = self.output_tensor_metadata {
+            if index < o.len() {
+                if let Some(t) = o.get(index).content() {
+                    if let Some(t) = t.content_properties_as_bounding_box_properties() {
+                        if let Some(i) = t.index() {
+                            if i.len() == 4 {
+                                for j in 0..4 {
+                                    slice[j] = i.get(j) as usize;
+                                }
+                                return true;
                             }
                         }
                     }

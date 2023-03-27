@@ -48,7 +48,7 @@
 //!         .model_asset_path(model_path) // set model path
 //!         .max_results(2) // set max result
 //!         .finalize()? // create a object detector
-//!         .classify(&input_img)?; // do inference and generate results
+//!         .detect(&input_img)?; // do inference and generate results
 //!
 //!     // show formatted result message
 //!     println!("{}", detection_result);

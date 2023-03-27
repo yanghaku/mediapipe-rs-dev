@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let classification_result = ImageClassifierBuilder::new()
         .model_asset_path(model_path) // set model path
-        .max_results(4) // set max result
+        .max_results(3) // set max result
         .finalize()? // create a image classifier
         .classify(&image::open(img_path)?)?; // do inference and generate results
 
@@ -55,6 +55,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+```
+
+Example input: ![](./assets/testdata/img/bird.jpg)
+
+Example output in console:
+
+```console
+$ cargo run --release --example image_classification -- ./assets/models/image_classification/lite-model_aiy_vision_classifier_birds_V1_3.tflite ./ass
+ets/testdata/img/bird.jpg 
+    Finished release [optimized] target(s) in 0.00s
+     Running `/mediapipe-rs/./scripts/wasmedge-runner.sh target/wasm32-wasi/release/examples/image_classification.wasm ./assets/models/image_classification/lite-model_aiy_vision_classifier_birds_V1_3.tflite ./assets/testdata/img/bird.jpg`
+ClassificationResult:
+  Classification #0:
+    Category #0:
+      Category name: "/m/01bwb9"
+      Display name:  "Passer domesticus"
+      Score:         0.91015625
+      Index:         671
+    Category #1:
+      Category name: "/m/0bwm6m"
+      Display name:  "Passer italiae"
+      Score:         0.00390625
+      Index:         495
+    Category #2:
+      Category name: "/m/020f2v"
+      Display name:  "Haemorhous cassinii"
+      Score:         0
+      Index:         0
 ```
 
 ### Object Detection
@@ -71,7 +99,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .model_asset_path(model_path) // set model path
         .max_results(2) // set max result
         .finalize()? // create a object detector
-        .classify(&input_img)?; // do inference and generate results
+        .detect(&input_img)?; // do inference and generate results
 
     // show formatted result message
     println!("{}", detection_result);
@@ -89,6 +117,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 Example input:
 ![](./assets/testdata/img/cat_and_dog.jpg)
+
+Example output in console:
+
+```console
+$ cargo run --release --example object_detection -- ./assets/models/object_detection/efficientdet_lite0_fp32.tflite ./assets/testdata/img/cat_and_dog.jpg
+    Finished release [optimized] target(s) in 0.00s
+     Running `/mediapipe-rs/./scripts/wasmedge-runner.sh target/wasm32-wasi/release/examples/object_detection.wasm ./assets/models/object_detection/efficientdet_lite0_fp32.tflite ./assets/testdata/img/cat_and_dog.jpg`
+DetectionResult:
+  Detection #0:
+    Box: (left: 0.12283102, top: 0.38476586, right: 0.51069236, bottom: 0.851197)
+    Category #0:
+      Category name: "cat"
+      Display name:  None
+      Score:         0.8460574
+      Index:         16
+  Detection #1:
+    Box: (left: 0.47926134, top: 0.06873521, right: 0.8711677, bottom: 0.87927735)
+    Category #0:
+      Category name: "dog"
+      Display name:  None
+      Score:         0.8375256
+      Index:         17
+```
 
 Example output:
 ![](./assets/doc/cat_and_dog_detection.jpg)

@@ -2,7 +2,7 @@ mod builder;
 pub use builder::ImageClassifierBuilder;
 
 use crate::model_resource::ModelResourceTrait;
-use crate::postprocess::sessions::ClassificationSession;
+use crate::postprocess::sessions::{CategoriesFilter, ClassificationSession};
 use crate::postprocess::ClassificationResult;
 use crate::preprocess::ToTensor;
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
@@ -33,8 +33,20 @@ impl ImageClassifier {
         check_quantization_parameters!(output_tensor_type, quantization_parameters, 0);
 
         let execution_ctx = self.graph.init_execution_context()?;
-        let mut classification_session =
-            ClassificationSession::new(&self.build_info.classifier_builder);
+        let labels = self.model_resource.output_tensor_labels_locale(
+            0,
+            self.build_info
+                .classifier_builder
+                .display_names_locale
+                .as_ref(),
+        )?;
+
+        let categories_filter =
+            CategoriesFilter::new(&self.build_info.classifier_builder, labels.0, labels.1);
+        let mut classification_session = ClassificationSession::new(
+            categories_filter,
+            self.build_info.classifier_builder.max_results,
+        );
         classification_session.add_output_cfg(
             vec![0; output_byte_size],
             output_tensor_type,

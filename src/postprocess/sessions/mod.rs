@@ -92,34 +92,6 @@ macro_rules! output_buffer_impl {
                 quantization_parameters: q,
             });
         }
-
-        #[allow(unused)]
-        #[inline(always)]
-        fn get_slice(&mut self, index: usize) -> &[f32] {
-            let tensor_type = self.outputs.get(0).unwrap().tensor_type;
-            match tensor_type {
-                TensorType::U8 => {
-                    let out = self.outputs.get_mut(index).unwrap();
-                    let (q, f) = out.quantization_parameters.as_mut().unwrap();
-                    out.data_buffer.as_slice().dequantize_to_buf(*q, f);
-                    f
-                }
-                TensorType::F32 => unsafe {
-                    let buf = self.outputs.get(index).unwrap().data_buffer.as_slice();
-                    core::slice::from_raw_parts(buf.as_ptr() as *const f32, buf.len() >> 2)
-                },
-                _ => {
-                    todo!("FP16, I32")
-                }
-            }
-        }
-
-        #[allow(unused)]
-        #[inline(always)]
-        fn get_mut_slice(&mut self, index: usize) -> &mut [f32] {
-            let out = self.outputs.get_mut(index).unwrap();
-            output_buffer_mut_slice!(out)
-        }
     };
 }
 
@@ -129,7 +101,7 @@ mod utils;
 
 pub(crate) use classification_session::ClassificationSession;
 pub(crate) use detection_session::{DetectionBoxFormat, DetectionSession};
-use utils::{
-    Anchor, NonMaxSuppressionAlgorithm, NonMaxSuppressionBuilder, NonMaxSuppressionOverlapType,
-    SsdAnchorsBuilder,
+pub(crate) use utils::{
+    Anchor, CategoriesFilter, NonMaxSuppressionAlgorithm, NonMaxSuppressionBuilder,
+    NonMaxSuppressionOverlapType, SsdAnchorsBuilder,
 };

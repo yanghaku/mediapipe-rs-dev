@@ -18,12 +18,11 @@ pub struct NonMaxSuppressionBuilder {
     algorithm: NonMaxSuppressionAlgorithm,
     max_results: usize,
     min_suppression_threshold: f32,
-    min_score_threshold: f32,
 }
 
 impl NonMaxSuppressionBuilder {
     #[inline(always)]
-    pub fn new(max_results: i32, min_score_threshold: f32) -> Self {
+    pub fn new(max_results: i32) -> Self {
         let max_results = if max_results < 0 {
             usize::MAX
         } else {
@@ -34,7 +33,6 @@ impl NonMaxSuppressionBuilder {
             algorithm: NonMaxSuppressionAlgorithm::DEFAULT,
             max_results,
             min_suppression_threshold: 1.0, // default
-            min_score_threshold,
         }
     }
 
@@ -96,9 +94,6 @@ impl NonMaxSuppressionBuilder {
         let mut retains = vec![false; detections.len()];
         let mut retained_locations = Vec::new();
         for (index, score) in indexed_scores {
-            if self.min_score_threshold > 0. && score < self.min_score_threshold {
-                break;
-            }
             let location = &detections[index].bounding_box;
             let mut suppressed = false;
 

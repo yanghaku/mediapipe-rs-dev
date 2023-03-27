@@ -2,7 +2,7 @@ mod builder;
 pub use builder::ObjectDetectorBuilder;
 
 use crate::model_resource::ModelResourceTrait;
-use crate::postprocess::sessions::DetectionSession;
+use crate::postprocess::sessions::{CategoriesFilter, DetectionSession};
 use crate::postprocess::DetectionResult;
 use crate::preprocess::ToTensor;
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
@@ -44,9 +44,19 @@ impl ObjectDetector {
     pub fn new_session(&self) -> Result<ObjectDetectorSession, Error> {
         let input_tensor_shape =
             model_resource_check_and_get_impl!(self.model_resource, input_tensor_shape, 0);
+        let labels = self.model_resource.output_tensor_labels_locale(
+            self.categories_buf_index,
+            self.build_info
+                .classifier_builder
+                .display_names_locale
+                .as_ref(),
+        )?;
 
+        let categories_filter =
+            CategoriesFilter::new(&self.build_info.classifier_builder, labels.0, labels.1);
         let detection_session = DetectionSession::new(
-            &self.build_info.classifier_builder,
+            categories_filter,
+            self.build_info.classifier_builder.max_results,
             &self.bound_box_properties,
             get_type_and_quantization!(self, self.location_buf_index),
             get_type_and_quantization!(self, self.categories_buf_index),
@@ -64,7 +74,7 @@ impl ObjectDetector {
     }
 
     #[inline(always)]
-    pub fn classify<'t>(self, input: &impl ToTensor<'t>) -> Result<DetectionResult, Error> {
+    pub fn detect<'t>(self, input: &impl ToTensor<'t>) -> Result<DetectionResult, Error> {
         self.new_session()?.detect(input)
     }
 }
