@@ -25,12 +25,12 @@ impl<'a> ClassificationSession<'a> {
     output_buffer_impl!();
 
     #[inline]
-    pub(crate) fn result(&mut self) -> ClassificationResult {
+    pub(crate) fn result(&mut self, timestamp_ms: Option<u64>) -> ClassificationResult {
         // todo: multi head classify
         let classifications_count = self.outputs.len();
         let mut res = ClassificationResult {
             classifications: Vec::with_capacity(classifications_count),
-            timestamp_ms: None,
+            timestamp_ms,
         };
 
         for id in 0..classifications_count {

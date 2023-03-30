@@ -1,5 +1,6 @@
 use crate::postprocess::QuantizationParameters;
-use crate::preprocess::vision::{DataLayout, ImageToTensorInfo};
+use crate::preprocess::vision::DataLayout;
+use crate::preprocess::{AudioToTensorInfo, ImageToTensorInfo};
 use crate::{Error, GraphEncoding, TensorType};
 
 /// Abstraction for model resources.
@@ -38,6 +39,8 @@ pub trait ModelResourceTrait {
     fn output_bounding_box_properties(&self, index: usize, slice: &mut [usize]) -> bool;
 
     fn image_to_tensor_info(&self, input_index: usize) -> Option<&ImageToTensorInfo>;
+
+    fn audio_to_tensor_info(&self, input_index: usize) -> Option<&AudioToTensorInfo>;
 }
 
 #[inline]
@@ -83,6 +86,16 @@ macro_rules! tensor_byte_size {
             crate::TensorType::F16 => 2,
         }
     };
+}
+
+macro_rules! tensor_bytes {
+    ( $tensor_type:expr, $tensor_shape:ident ) => {{
+        let mut b = tensor_byte_size!($tensor_type);
+        for s in $tensor_shape {
+            b *= s;
+        }
+        b
+    }};
 }
 
 macro_rules! check_quantization_parameters {

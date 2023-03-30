@@ -70,11 +70,12 @@ impl ObjectDetector {
             detection_session,
             num_box_buf: [0f32],
             input_tensor_shape,
+            input_buffer: vec![0; tensor_bytes!(self.input_tensor_type, input_tensor_shape)],
         })
     }
 
     #[inline(always)]
-    pub fn detect<'t>(self, input: &impl ToTensor<'t>) -> Result<DetectionResult, Error> {
+    pub fn detect(&self, input: &impl ToTensor) -> Result<DetectionResult, Error> {
         self.new_session()?.detect(input)
     }
 }
@@ -97,17 +98,22 @@ pub struct ObjectDetectorSession<'a> {
 
     num_box_buf: [f32; 1],
     input_tensor_shape: &'a [usize],
+    input_buffer: Vec<u8>,
 }
 
 impl<'a> ObjectDetectorSession<'a> {
-    pub fn detect<'t>(&mut self, input: &impl ToTensor<'t>) -> Result<DetectionResult, Error> {
-        let tensor = input.to_tensor(0, &self.detector.model_resource)?;
+    pub fn detect(&mut self, input: &impl ToTensor) -> Result<DetectionResult, Error> {
+        input.to_tensors(
+            0,
+            &self.detector.model_resource,
+            &mut [&mut self.input_buffer],
+        )?;
 
         self.execution_ctx.set_input(
             0,
             self.detector.input_tensor_type,
             self.input_tensor_shape,
-            tensor.as_ref(),
+            self.input_buffer.as_ref(),
         )?;
         self.execution_ctx.compute()?;
 

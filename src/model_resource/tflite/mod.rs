@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
+use crate::preprocess::vision::ImageColorSpaceType;
+use crate::preprocess::ToTensorInfo;
 use generated::*;
 
-use crate::preprocess::vision::ImageColorSpaceType;
-
 use super::{
-    zip::ZipFiles, DataLayout, Error, GraphEncoding, ImageToTensorInfo, ModelResourceTrait,
-    QuantizationParameters, TensorType,
+    zip::ZipFiles, AudioToTensorInfo, DataLayout, Error, GraphEncoding, ImageToTensorInfo,
+    ModelResourceTrait, QuantizationParameters, TensorType,
 };
 
 mod generated;
@@ -25,7 +25,7 @@ pub(crate) struct TfLiteModelResource<'buf> {
     output_types: Vec<TensorType>,
     output_bytes_size: Vec<usize>,
     output_quantization_parameters: Vec<Option<QuantizationParameters>>,
-    image_to_tensor_info: Vec<Option<ImageToTensorInfo>>,
+    to_tensor_info: Vec<Option<ToTensorInfo>>,
     output_name_map: HashMap<&'buf str, usize>,
     associated_files: Option<ZipFiles<'buf>>,
 }
@@ -47,7 +47,7 @@ impl<'buf> TfLiteModelResource<'buf> {
             output_types: Vec::new(),
             output_bytes_size: Vec::new(),
             output_quantization_parameters: Vec::new(),
-            image_to_tensor_info: Vec::new(),
+            to_tensor_info: Vec::new(),
             output_name_map: Default::default(),
             associated_files,
         };
@@ -93,7 +93,14 @@ impl<'buf> TfLiteModelResource<'buf> {
                     let len = s.len();
                     let mut shape = Vec::with_capacity(len);
                     for d in 0..len {
-                        shape.push(s.get(d) as usize);
+                        let val = s.get(d) as usize;
+                        if val < 1 {
+                            return Err(Error::ModelParseError(format!(
+                                "Invalid model input `{}` shape `{}, size is `0`",
+                                i, d
+                            )));
+                        }
+                        shape.push(val);
                     }
                     self.input_shape.push(shape);
                 } else {
@@ -125,6 +132,12 @@ impl<'buf> TfLiteModelResource<'buf> {
                     let mut shape = Vec::with_capacity(len);
                     for d in 0..len {
                         let val = s.get(d) as usize;
+                        if val < 1 {
+                            return Err(Error::ModelParseError(format!(
+                                "Invalid model output `{}` shape `{}, size is `0`",
+                                i, d
+                            )));
+                        }
                         bytes *= val;
                         shape.push(val);
                     }
@@ -213,7 +226,11 @@ impl<'buf> TfLiteModelResource<'buf> {
             let len = input_tensors.len();
             for i in 0..len {
                 let input = input_tensors.get(i);
-                if input.name() == Some("image") {
+                if input.content().is_none() {
+                    continue;
+                }
+                let content = input.content().unwrap();
+                if let Some(props) = content.content_properties_as_image_properties() {
                     let (height, width) = if let Some(shape) = self.input_shape.get(i) {
                         if shape.len() == 4 && shape[0] == 1 && (shape[3] == 3 || shape[3] == 1) {
                             (shape[1] as u32, shape[2] as u32)
@@ -258,9 +275,15 @@ impl<'buf> TfLiteModelResource<'buf> {
                         }
                     }
 
-                    // todo: color_space
+                    let color_space = match props.color_space() {
+                        tflite_metadata::ColorSpaceType::RGB => ImageColorSpaceType::RGB,
+                        tflite_metadata::ColorSpaceType::GRAYSCALE => {
+                            ImageColorSpaceType::GRAYSCALE
+                        }
+                        _ => ImageColorSpaceType::UNKNOWN,
+                    };
                     let img_info = ImageToTensorInfo {
-                        color_space: ImageColorSpaceType::RGB,
+                        color_space,
                         tensor_type: self.input_types.get(i).unwrap().clone(),
                         width,
                         height,
@@ -269,12 +292,43 @@ impl<'buf> TfLiteModelResource<'buf> {
                         normalization_options,
                     };
 
-                    while self.image_to_tensor_info.len() < i {
-                        self.image_to_tensor_info.push(None);
+                    while self.to_tensor_info.len() < i {
+                        self.to_tensor_info.push(None);
                     }
-                    self.image_to_tensor_info.push(Some(img_info));
+                    self.to_tensor_info
+                        .push(Some(ToTensorInfo::Image(img_info)));
+                } else if let Some(props) = content.content_properties_as_audio_properties() {
+                    let input_shape = self.input_shape.get(i).unwrap();
+                    let num_channels = props.channels();
+                    if num_channels == 0 {
+                        return Err(Error::ModelParseError(format!(
+                            "Audio input tensor `{}`, num channel cannot be zero",
+                            i
+                        )));
+                    }
+                    let input_buffer_size = input_shape.iter().fold(1, |mul, &val| mul * val);
+                    if input_buffer_size % num_channels as usize != 0 {
+                        return Err(Error::ModelParseError(format!(
+                            "Input tensor size `{}` should be a multiplier of the number of channels `{}`",
+                            input_buffer_size, num_channels
+                        )));
+                    }
+                    let num_samples = *input_shape.last().unwrap() as u32 / num_channels;
+                    let audio_info = AudioToTensorInfo {
+                        num_channels,
+                        num_samples,
+                        sample_rate: props.sample_rate(),
+                        num_overlapping_samples: 0,
+                        tensor_type: self.input_types.get(i).unwrap().clone(),
+                    };
+
+                    while self.to_tensor_info.len() < i {
+                        self.to_tensor_info.push(None);
+                    }
+                    self.to_tensor_info
+                        .push(Some(ToTensorInfo::Audio(audio_info)));
                 } else {
-                    // todo
+                    // do nothing
                 }
             }
         }
@@ -441,11 +495,21 @@ impl<'buf> ModelResourceTrait for TfLiteModelResource<'buf> {
     }
 
     fn image_to_tensor_info(&self, input_index: usize) -> Option<&ImageToTensorInfo> {
-        if let Some(i) = self.image_to_tensor_info.get(input_index) {
-            Some(i.as_ref().unwrap())
-        } else {
-            None
+        if let Some(t) = self.to_tensor_info.get(input_index) {
+            if let ToTensorInfo::Image(i) = t.as_ref().unwrap() {
+                return Some(i);
+            }
         }
+        None
+    }
+
+    fn audio_to_tensor_info(&self, input_index: usize) -> Option<&AudioToTensorInfo> {
+        if let Some(t) = self.to_tensor_info.get(input_index) {
+            if let ToTensorInfo::Audio(a) = t.as_ref().unwrap() {
+                return Some(a);
+            }
+        }
+        None
     }
 }
 

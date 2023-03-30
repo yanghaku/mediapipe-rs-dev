@@ -31,3 +31,4 @@ image = { version = "^0.24", default-features = false }
 
 [dev-dependencies]
 image = { version = "^0.24", default-features = false, features = ["jpeg"] }
+symphonia = { version = "0.5", default-features = false, features = ["wav", "pcm"] }
