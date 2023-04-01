@@ -64,7 +64,79 @@
 //! }
 //! ```
 //!
-//! ### GPU and TPU support
+//! ### Text Classification
+//! ```rust
+//! use mediapipe_rs::tasks::text::TextClassifierBuilder;
+//!
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let model_path = parse_args()?;
+//!
+//!     let text_classifier = TextClassifierBuilder::new()
+//!         .model_asset_path(model_path) // set model path
+//!         .max_results(1) // set max result
+//!         .finalize()?; // create a text classifier
+//!
+//!     let positive_str = "I love coding so much!";
+//!     let negative_str = "I don't like raining.";
+//!
+//!     // classify show formatted result message
+//!     let result = text_classifier.classify(&positive_str)?;
+//!     println!("`{}` -- {}", positive_str, result);
+//!
+//!     let result = text_classifier.classify(&negative_str)?;
+//!     println!("`{}` -- {}", negative_str, result);
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Use the Session to speed up
+//!
+//! The session includes inference sessions (such as TfLite interpreter), input and output buffers, etc.
+//! Explicitly using the session can reuse these resources to speed up.
+//!
+//! ### Example: Text Classificaton
+//!
+//! Origin:
+//! ```rust
+//! use mediapipe_rs::tasks::text::TextClassifier;
+//! use mediapipe_rs::postprocess::ClassificationResult;
+//! use mediapipe_rs::Error;
+//!
+//! fn inference(
+//!     text_classifier: &TextClassifier,
+//!     inputs: &Vec<String>
+//! ) -> Result<Vec<ClassificationResult>, Error> {
+//!     let mut res = Vec::with_capacity(inputs.len());
+//!     for input in inputs {
+//!         // text_classifier will create new session every time
+//!         res.push(text_classifier.classify(input.as_str())?);
+//!     }
+//!     Ok(res)
+//! }
+//! ```
+//!
+//! Use the session to speed up:
+//! ```rust
+//! use mediapipe_rs::tasks::text::TextClassifier;
+//! use mediapipe_rs::postprocess::ClassificationResult;
+//! use mediapipe_rs::Error;
+//!
+//! fn inference(
+//!     text_classifier: &TextClassifier,
+//!     inputs: &Vec<String>
+//! ) -> Result<Vec<ClassificationResult>, Error> {
+//!     let mut res = Vec::with_capacity(inputs.len());
+//!     // only create one session and reuse the resources in session.
+//!     let mut session = text_classifier.new_session()?;
+//!     for input in inputs {
+//!         res.push(session.classify(input.as_str())?);
+//!     }
+//!     Ok(res)
+//! }
+//! ```
+//!
+//! ## GPU and TPU support
 //!
 //! The default device is CPU, and user can use APIs to choose device to use:
 //! ```rust
