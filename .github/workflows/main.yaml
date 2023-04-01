@@ -27,4 +27,4 @@ jobs:
         run: ./scripts/download-models.sh
 
       - name: test
-        run: source "$HOME/.cargo/env" && cargo test --release -- --nocapture
+        run: PATH="$HOME/.cargo/bin:$PATH" cargo test --release -- --nocapture
