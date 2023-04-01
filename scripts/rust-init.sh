@@ -4,7 +4,7 @@
 apt update && apt install curl -y
 
 # install rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -q -y
 
 # add wasm32-wasi target
 rustup target add wasm32-wasi
