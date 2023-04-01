@@ -5,8 +5,12 @@ pub mod utils;
 
 pub use containers::category::Category;
 pub use containers::classification_result::{ClassificationResult, Classifications};
-pub use containers::detection_result::{Detection, DetectionResult};
-pub use containers::key_point::NormalizedKeypoint;
-pub use containers::rect::Rect;
+
+#[cfg(feature = "vision")]
+pub use containers::{
+    detection_result::{Detection, DetectionResult},
+    key_point::NormalizedKeypoint,
+    rect::Rect,
+};
 
 pub use ops::QuantizationParameters;

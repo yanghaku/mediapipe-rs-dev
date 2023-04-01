@@ -96,12 +96,12 @@ macro_rules! output_buffer_impl {
 }
 
 mod classification_session;
+#[cfg(feature = "vision")]
 mod detection_session;
 mod utils;
 
 pub(crate) use classification_session::ClassificationSession;
+pub(crate) use utils::*;
+
+#[cfg(feature = "vision")]
 pub(crate) use detection_session::{DetectionBoxFormat, DetectionSession};
-pub(crate) use utils::{
-    Anchor, CategoriesFilter, NonMaxSuppressionAlgorithm, NonMaxSuppressionBuilder,
-    NonMaxSuppressionOverlapType, SsdAnchorsBuilder,
-};

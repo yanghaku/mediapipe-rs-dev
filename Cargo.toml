@@ -13,6 +13,7 @@ description = "A Rust library for mediapipe tasks"
 publish = true
 
 [package.metadata.docs.rs]
+all-features = true
 # only build for wasm32-wasi now
 default-target = "wasm32-wasi"
 targets = ["wasm32-wasi"]
@@ -27,7 +28,19 @@ include = [
 [dependencies]
 wasi-nn-safe = "0"
 flatbuffers = "23"
-image = { version = "^0.24", default-features = false }
+image = { version = "^0.24", default-features = false, optional = true }
+regex = { version = "1", optional = true }
+lazy_static = { version = "1", optional = true }
+
+
+[features]
+# default is all task types
+default = ["audio", "vision", "text"]
+
+audio = []
+vision = ["image"]
+text = ["regex", "lazy_static"]
+
 
 [dev-dependencies]
 image = { version = "^0.24", default-features = false, features = ["jpeg"] }

@@ -1,7 +1,7 @@
 mod builder;
 pub use builder::AudioClassifierBuilder;
 
-use crate::model_resource::ModelResourceTrait;
+use crate::model::ModelResourceTrait;
 use crate::postprocess::sessions::{CategoriesFilter, ClassificationSession};
 use crate::postprocess::ClassificationResult;
 use crate::preprocess::{ToTensorStream, ToTensorStreamIterator};

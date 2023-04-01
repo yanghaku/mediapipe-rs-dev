@@ -1,14 +1,14 @@
+#[cfg(feature = "audio")]
 pub mod audio;
 
+#[cfg(feature = "text")]
 pub mod text;
 
+#[cfg(feature = "vision")]
 pub mod vision;
 
-use crate::model_resource::ModelResourceTrait;
+use crate::model::ModelResourceTrait;
 use crate::Error;
-
-pub use audio::AudioToTensorInfo;
-pub use vision::ImageToTensorInfo;
 
 /// Every media such as Image, Audio, Text, can implement this trait and be used as model input
 pub trait ToTensor {
@@ -38,7 +38,14 @@ pub trait ToTensorStreamIterator {
     // todo: async api
 }
 
-pub enum ToTensorInfo {
-    Audio(AudioToTensorInfo),
-    Image(ImageToTensorInfo),
+pub(crate) enum ToTensorInfo<'buf> {
+    #[cfg(feature = "audio")]
+    Audio(audio::AudioToTensorInfo),
+    #[cfg(feature = "vision")]
+    Image(vision::ImageToTensorInfo),
+    #[cfg(feature = "text")]
+    Text(text::TextToTensorInfo<'buf>),
+
+    #[cfg(not(feature = "text"))]
+    _None(std::marker::PhantomData<&'buf ()>),
 }

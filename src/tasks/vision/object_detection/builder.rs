@@ -1,5 +1,5 @@
 use super::ObjectDetector;
-use crate::model_resource::ModelResourceTrait;
+use crate::model::ModelResourceTrait;
 use crate::tasks::common::{BaseTaskBuilder, ClassifierBuilder};
 
 /// Configure the properties of a new object detection task.
@@ -28,7 +28,7 @@ impl ObjectDetectorBuilder {
         let buf = base_task_builder_check_and_get_buf!(self);
 
         // change the lifetime to 'static, because the buf will move to graph and will not be released.
-        let model_resource_ref = crate::model_resource::parse_model(buf.as_ref())?;
+        let model_resource_ref = crate::model::parse_model(buf.as_ref())?;
         let model_resource = unsafe {
             std::mem::transmute::<_, Box<dyn ModelResourceTrait + 'static>>(model_resource_ref)
         };

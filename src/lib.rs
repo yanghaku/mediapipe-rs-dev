@@ -87,16 +87,19 @@
 //! }
 //! ```
 
+#[cfg(not(any(feature = "vision", feature = "audio", feature = "text")))]
+compile_error!("Must select at least one task type: `vision`, `audio`, `text`");
+
 mod error;
 #[macro_use]
-mod model_resource;
+mod model;
 
 pub mod postprocess;
 pub mod preprocess;
 pub mod tasks;
 
 pub use error::Error;
-pub use model_resource::ModelResourceTrait;
+pub use model::ModelResourceTrait;
 pub use wasi_nn_safe::GraphExecutionTarget as Device;
 use wasi_nn_safe::{
     Graph, GraphBuilder, GraphEncoding, GraphExecutionContext, SharedSlice, TensorType,

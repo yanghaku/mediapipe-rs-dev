@@ -1,3 +1,4 @@
+use crate::model::MemoryTextFile;
 use crate::postprocess::Category;
 use crate::tasks::common::ClassifierBuilder;
 use std::borrow::Cow;
@@ -5,8 +6,7 @@ use std::collections::HashSet;
 
 enum Label<'a> {
     Deny,
-    Allowed((String, Option<String>)),
-    AllowedRef((&'a str, Option<&'a str>)),
+    Allowed((Cow<'a, str>, Option<Cow<'a, str>>)),
 }
 
 pub(crate) struct CategoriesFilter<'a> {
@@ -30,30 +30,29 @@ impl<'a> CategoriesFilter<'a> {
             set.extend(option.category_allow_list.iter().map(|s| s.as_str()));
         }
 
-        let labels: Cow<'a, str> = String::from_utf8_lossy(labels);
+        let mut label_file = MemoryTextFile::new(labels);
         let mut vec = Vec::with_capacity(set.len());
-        for line in labels.lines() {
-            let allow = if set.contains(line) {
+        while let Some(line) = label_file.next_line() {
+            let allow = if set.contains(line.as_ref()) {
                 is_allow_list
             } else {
                 !is_allow_list
             };
 
             if allow {
-                vec.push(Label::Allowed((String::from(line), None)));
+                vec.push(Label::Allowed((line, None)));
             } else {
                 vec.push(Label::Deny);
             }
         }
 
         if let Some(labels_locale) = labels_locale {
-            let mut index = 0;
-            let labels_locale = String::from_utf8_lossy(labels_locale);
-            for line in labels_locale.lines() {
-                if let Some(Label::Allowed((_, o))) = vec.get_mut(index) {
-                    *o = Some(String::from(line));
+            let mut iter = vec.iter_mut();
+            let mut labels_locale_file = MemoryTextFile::new(labels_locale);
+            while let Some(line) = labels_locale_file.next_line() {
+                if let Some(Label::Allowed((_, o))) = iter.next() {
+                    *o = Some(line);
                 }
-                index += 1;
             }
         }
 
@@ -70,8 +69,8 @@ impl<'a> CategoriesFilter<'a> {
                 return Some(Category {
                     index: index as i32,
                     score,
-                    category_name: Some(l.clone()),
-                    display_name: l_locale.clone(),
+                    category_name: Some(l.clone().into_owned()),
+                    display_name: l_locale.clone().map(|l| l.into_owned()),
                 });
             }
         }

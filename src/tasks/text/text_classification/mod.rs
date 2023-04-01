@@ -1,5 +1,5 @@
 mod builder;
-pub use builder::ImageClassifierBuilder;
+pub use builder::TextClassifierBuilder;
 
 use crate::model::ModelResourceTrait;
 use crate::postprocess::sessions::{CategoriesFilter, ClassificationSession};
@@ -7,29 +7,35 @@ use crate::postprocess::ClassificationResult;
 use crate::preprocess::ToTensor;
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
-/// Performs classification on images.
-pub struct ImageClassifier {
-    build_info: ImageClassifierBuilder,
+/// Performs classification on text.
+pub struct TextClassifier {
+    build_info: TextClassifierBuilder,
     model_resource: Box<dyn ModelResourceTrait>,
     graph: Graph,
-    input_tensor_type: TensorType,
 }
 
-impl ImageClassifier {
+impl TextClassifier {
     base_task_build_info_get_impl!();
 
     classifier_build_info_get_impl!();
 
     #[inline(always)]
-    pub fn new_session(&self) -> Result<ImageClassifierSession, Error> {
-        let input_tensor_shape =
-            model_resource_check_and_get_impl!(self.model_resource, input_tensor_shape, 0);
+    pub fn new_session(&self) -> Result<TextClassifierSession, Error> {
+        let input_count = self.model_resource.input_tensor_count();
+        let mut input_tensor_shapes = Vec::with_capacity(input_count);
+        let mut input_tensor_bufs = Vec::with_capacity(input_count);
+        for i in 0..input_count {
+            let input_tensor_shape =
+                model_resource_check_and_get_impl!(self.model_resource, input_tensor_shape, i);
+            let bytes = input_tensor_shape.iter().fold(4, |sum, b| sum * *b);
+            input_tensor_shapes.push(input_tensor_shape);
+            input_tensor_bufs.push(vec![0; bytes]);
+        }
+
         let output_byte_size =
             model_resource_check_and_get_impl!(self.model_resource, output_tensor_byte_size, 0);
         let output_tensor_type =
             model_resource_check_and_get_impl!(self.model_resource, output_tensor_type, 0);
-        let quantization_parameters = self.model_resource.output_tensor_quantization_parameters(0);
-        check_quantization_parameters!(output_tensor_type, quantization_parameters, 0);
 
         let execution_ctx = self.graph.init_execution_context()?;
         let labels = self.model_resource.output_tensor_labels_locale(
@@ -46,17 +52,14 @@ impl ImageClassifier {
             categories_filter,
             self.build_info.classifier_builder.max_results,
         );
-        classification_session.add_output_cfg(
-            vec![0; output_byte_size],
-            output_tensor_type,
-            quantization_parameters,
-        );
-        Ok(ImageClassifierSession {
+        classification_session.add_output_cfg(vec![0; output_byte_size], output_tensor_type, None);
+
+        Ok(TextClassifierSession {
             classifier: self,
             execution_ctx,
             classification_session,
-            input_tensor_shape,
-            input_tensor_buf: vec![0; tensor_bytes!(self.input_tensor_type, input_tensor_shape)],
+            input_tensor_shapes,
+            input_tensor_bufs,
         })
     }
 
@@ -66,41 +69,47 @@ impl ImageClassifier {
     }
 }
 
-/// Session to run inference. If process multiple images, use it can get better performance.
+/// Session to run inference. If process multiple text, use it can get better performance.
 ///
 /// ```rust
-/// use mediapipe_rs::tasks::vision::ImageClassifier;
+/// use mediapipe_rs::tasks::text::TextClassifier;
 ///
-/// let image_classifier: ImageClassifier;
-/// let mut session = image_classifier.new_session()?;
-/// for image in images {
-///     session.classify(image)?;
+/// let text_classifier: TextClassifier;
+/// let mut session = text_classifier.new_session()?;
+/// for text in texts {
+///     session.classify(text)?;
 /// }
 /// ```
-pub struct ImageClassifierSession<'a> {
-    classifier: &'a ImageClassifier,
+pub struct TextClassifierSession<'a> {
+    classifier: &'a TextClassifier,
     execution_ctx: GraphExecutionContext<'a>,
     classification_session: ClassificationSession<'a>,
 
-    // only one input and one output
-    input_tensor_shape: &'a [usize],
-    input_tensor_buf: Vec<u8>,
+    input_tensor_shapes: Vec<&'a [usize]>,
+    input_tensor_bufs: Vec<Vec<u8>>,
 }
 
-impl<'a> ImageClassifierSession<'a> {
+impl<'a> TextClassifierSession<'a> {
     pub fn classify(&mut self, input: &impl ToTensor) -> Result<ClassificationResult, Error> {
+        let mut input_buffers: Vec<&mut [u8]> = self
+            .input_tensor_bufs
+            .iter_mut()
+            .map(|v| v.as_mut_slice())
+            .collect();
         input.to_tensors(
             0,
             &self.classifier.model_resource,
-            &mut [&mut self.input_tensor_buf],
+            input_buffers.as_mut_slice(),
         )?;
 
-        self.execution_ctx.set_input(
-            0,
-            self.classifier.input_tensor_type,
-            self.input_tensor_shape,
-            self.input_tensor_buf.as_ref(),
-        )?;
+        for index in 0..self.input_tensor_bufs.len() {
+            self.execution_ctx.set_input(
+                index,
+                TensorType::I32,
+                self.input_tensor_shapes[index],
+                self.input_tensor_bufs[index].as_slice(),
+            )?;
+        }
         self.execution_ctx.compute()?;
 
         let output_buffer = self.classification_session.output_buffer(0);

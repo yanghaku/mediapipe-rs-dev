@@ -1,7 +1,7 @@
 mod builder;
 pub use builder::ObjectDetectorBuilder;
 
-use crate::model_resource::ModelResourceTrait;
+use crate::model::ModelResourceTrait;
 use crate::postprocess::sessions::{CategoriesFilter, DetectionSession};
 use crate::postprocess::DetectionResult;
 use crate::preprocess::ToTensor;

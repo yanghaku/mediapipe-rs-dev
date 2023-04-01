@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 // ZIP format spec: https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT
 
 use crate::Error;
@@ -588,7 +586,7 @@ impl<'buf> ZipFiles<'buf> {
 
 #[cfg(test)]
 mod test {
-    use crate::model_resource::zip::{
+    use crate::model::zip::{
         CentralDirectory, EndOfCentralDirectoryRecord, LocalFileHeader, ZipFiles,
     };
 

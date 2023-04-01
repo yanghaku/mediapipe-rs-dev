@@ -1,16 +1,17 @@
-use super::AudioClassifier;
+use super::TextClassifier;
 use crate::model::ModelResourceTrait;
 use crate::tasks::common::{BaseTaskBuilder, ClassifierBuilder};
 use crate::Error;
+use wasi_nn_safe::TensorType;
 
-/// Configure the properties of a new Audio classification task.
+/// Configure the properties of a new text classification task.
 /// Methods can be chained on it in order to configure it.
-pub struct AudioClassifierBuilder {
+pub struct TextClassifierBuilder {
     pub(super) base_task_builder: BaseTaskBuilder,
     pub(super) classifier_builder: ClassifierBuilder,
 }
 
-impl AudioClassifierBuilder {
+impl TextClassifierBuilder {
     #[inline(always)]
     pub fn new() -> Self {
         Self {
@@ -24,7 +25,7 @@ impl AudioClassifierBuilder {
     classifier_builder_impl!();
 
     #[inline]
-    pub fn finalize(mut self) -> Result<AudioClassifier, Error> {
+    pub fn finalize(mut self) -> Result<TextClassifier, Error> {
         classifier_builder_check!(self);
         let buf = base_task_builder_check_and_get_buf!(self);
 
@@ -35,10 +36,30 @@ impl AudioClassifierBuilder {
         };
 
         // check model
-        model_base_check_impl!(model_resource, 1, 1);
-        let _ = model_resource_check_and_get_impl!(model_resource, audio_to_tensor_info, 0);
-        let input_tensor_type =
-            model_resource_check_and_get_impl!(model_resource, input_tensor_type, 0);
+        model_base_check_impl!(model_resource, 1);
+        let info = model_resource.text_to_tensor_info();
+        if info.is_none() {
+            return Err(Error::ModelInconsistentError(
+                "Model is not for text classification task".into(),
+            ));
+        }
+
+        let input_count = model_resource.input_tensor_count();
+        if input_count != 1 && input_count != 3 {
+            return Err(Error::ModelInconsistentError(format!(
+                "Expect model input tensor count `1` or `3`, but got `{}`",
+                input_count
+            )));
+        }
+        for i in 0..input_count {
+            let t = model_resource_check_and_get_impl!(model_resource, input_tensor_type, i);
+            if t != TensorType::I32 {
+                // todo: string type support
+                return Err(Error::ModelInconsistentError(
+                    "All input tensors should be int32 type".into(),
+                ));
+            }
+        }
 
         let graph = crate::GraphBuilder::new(
             model_resource.model_backend(),
@@ -46,31 +67,10 @@ impl AudioClassifierBuilder {
         )
         .build_from_shared_slices([buf])?;
 
-        return Ok(AudioClassifier {
+        return Ok(TextClassifier {
             build_info: self,
             model_resource,
             graph,
-            input_tensor_type,
         });
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use crate::tasks::audio::AudioClassifierBuilder;
-
-    #[test]
-    fn test_builder_check() {
-        assert!(AudioClassifierBuilder::new().finalize().is_err());
-        assert!(AudioClassifierBuilder::new()
-            .model_asset_buffer("".into())
-            .model_asset_path("".into())
-            .finalize()
-            .is_err());
-        assert!(AudioClassifierBuilder::new()
-            .model_asset_path("".into())
-            .max_results(0)
-            .finalize()
-            .is_err());
     }
 }

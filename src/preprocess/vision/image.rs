@@ -4,7 +4,7 @@ use super::super::*;
 
 /// Data layout in memory for image tensor. ```NCHW```, ```NHWC```, ```CHWN```.
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy, Clone)]
-pub enum DataLayout {
+pub enum ImageDataLayout {
     NCHW,
     NHWC,
     CHWN,
@@ -21,6 +21,7 @@ pub enum ImageColorSpaceType {
 /// Necessary information for the image to tensor.
 #[derive(Debug)]
 pub struct ImageToTensorInfo {
+    pub image_data_layout: ImageDataLayout,
     pub color_space: ImageColorSpaceType,
     pub tensor_type: TensorType,
     pub width: u32,
@@ -187,7 +188,7 @@ mod image_crate_type_impl {
 
         let tensor_type =
             model_resource_check_and_get_impl!(model_resource, input_tensor_type, input_index);
-        let data_layout = model_resource.data_layout();
+        let data_layout = info.image_data_layout;
         let res = output_buffer.as_mut();
         let mut res_index = 0;
         match tensor_type {
@@ -199,7 +200,7 @@ mod image_crate_type_impl {
 
                 let hw = (img.width() * img.height()) as usize;
                 return match data_layout {
-                    DataLayout::NHWC => {
+                    ImageDataLayout::NHWC => {
                         let mut i = 0;
                         while i < bytes.len() {
                             let f = ((bytes[i] as f32) - r_mean) / r_std;
@@ -215,7 +216,7 @@ mod image_crate_type_impl {
                         }
                         Ok(())
                     }
-                    DataLayout::NCHW | DataLayout::CHWN => {
+                    ImageDataLayout::NCHW | ImageDataLayout::CHWN => {
                         for start in 0..3 {
                             let mut i = start as usize;
                             while i < hw {
@@ -233,13 +234,13 @@ mod image_crate_type_impl {
                 let bytes = img.as_bytes();
                 debug_assert_eq!(res.len(), bytes.len());
                 return match data_layout {
-                    DataLayout::NHWC => {
+                    ImageDataLayout::NHWC => {
                         // just copy
                         res.copy_from_slice(bytes);
                         Ok(())
                     }
                     // batch is always 1 now
-                    DataLayout::NCHW | DataLayout::CHWN => {
+                    ImageDataLayout::NCHW | ImageDataLayout::CHWN => {
                         let hw = (img.width() * img.height()) as usize;
                         for c in 0..3 {
                             let mut i = c as usize;

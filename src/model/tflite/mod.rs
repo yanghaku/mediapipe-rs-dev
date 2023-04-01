@@ -1,15 +1,7 @@
-use std::collections::HashMap;
-
-use crate::preprocess::vision::ImageColorSpaceType;
-use crate::preprocess::ToTensorInfo;
-use generated::*;
-
-use super::{
-    zip::ZipFiles, AudioToTensorInfo, DataLayout, Error, GraphEncoding, ImageToTensorInfo,
-    ModelResourceTrait, QuantizationParameters, TensorType,
-};
-
 mod generated;
+
+use super::*;
+use generated::{tflite as tflite_model, tflite_metadata};
 
 pub(crate) struct TfLiteModelResource<'buf> {
     output_tensor_metadata: Option<
@@ -25,7 +17,7 @@ pub(crate) struct TfLiteModelResource<'buf> {
     output_types: Vec<TensorType>,
     output_bytes_size: Vec<usize>,
     output_quantization_parameters: Vec<Option<QuantizationParameters>>,
-    to_tensor_info: Vec<Option<ToTensorInfo>>,
+    to_tensor_info: Vec<Option<ToTensorInfo<'buf>>>,
     output_name_map: HashMap<&'buf str, usize>,
     associated_files: Option<ZipFiles<'buf>>,
 }
@@ -38,7 +30,7 @@ impl<'buf> TfLiteModelResource<'buf> {
 
     pub(super) fn new(buf: &'buf [u8]) -> Result<Self, Error> {
         let associated_files = ZipFiles::try_new(buf)?;
-        let model = tflite::root_as_model(buf)?;
+        let model = tflite_model::root_as_model(buf)?;
         let mut _self = Self {
             output_tensor_metadata: None,
             input_shape: Vec::new(),
@@ -60,7 +52,7 @@ impl<'buf> TfLiteModelResource<'buf> {
     }
 
     #[inline]
-    fn parse_subgraph(&mut self, model: &tflite::Model<'buf>) -> Result<(), Error> {
+    fn parse_subgraph(&mut self, model: &tflite_model::Model<'buf>) -> Result<(), Error> {
         let subgraph = match model.subgraphs() {
             Some(s) => {
                 if s.len() < 1 {
@@ -176,7 +168,7 @@ impl<'buf> TfLiteModelResource<'buf> {
 
     #[inline]
     fn parse_model_metadata(
-        model: &tflite::Model<'buf>,
+        model: &tflite_model::Model<'buf>,
     ) -> Result<Option<tflite_metadata::ModelMetadata<'buf>>, Error> {
         if let (Some(metadata_vec), Some(model_buffers)) = (model.metadata(), model.buffers()) {
             for i in 0..metadata_vec.len() {
@@ -230,108 +222,22 @@ impl<'buf> TfLiteModelResource<'buf> {
                     continue;
                 }
                 let content = input.content().unwrap();
+
+                #[cfg(feature = "vision")]
                 if let Some(props) = content.content_properties_as_image_properties() {
-                    let (height, width) = if let Some(shape) = self.input_shape.get(i) {
-                        if shape.len() == 4 && shape[0] == 1 && (shape[3] == 3 || shape[3] == 1) {
-                            (shape[1] as u32, shape[2] as u32)
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        continue;
-                    };
-                    let (stats_min, stats_max) = if let Some(stats) = input.stats() {
-                        let min = if let Some(m) = stats.min() {
-                            m.iter().collect()
-                        } else {
-                            vec![]
-                        };
-                        let max = if let Some(m) = stats.max() {
-                            m.iter().collect()
-                        } else {
-                            vec![]
-                        };
-                        (min, max)
-                    } else {
-                        (vec![], vec![])
-                    };
+                    self.parse_vision_model_input_info(i, &input, props)?;
+                }
 
-                    let mut normalization_options = (vec![], vec![]);
-                    if let Some(n) = input.process_units() {
-                        for i in 0..n.len() {
-                            if let Some(p) = n.get(i).options_as_normalization_options() {
-                                normalization_options.0 = if let Some(m) = p.mean() {
-                                    m.iter().collect()
-                                } else {
-                                    vec![]
-                                };
-                                normalization_options.1 = if let Some(m) = p.std_() {
-                                    m.iter().collect()
-                                } else {
-                                    vec![]
-                                };
-                                break;
-                            }
-                        }
-                    }
-
-                    let color_space = match props.color_space() {
-                        tflite_metadata::ColorSpaceType::RGB => ImageColorSpaceType::RGB,
-                        tflite_metadata::ColorSpaceType::GRAYSCALE => {
-                            ImageColorSpaceType::GRAYSCALE
-                        }
-                        _ => ImageColorSpaceType::UNKNOWN,
-                    };
-                    let img_info = ImageToTensorInfo {
-                        color_space,
-                        tensor_type: self.input_types.get(i).unwrap().clone(),
-                        width,
-                        height,
-                        stats_min,
-                        stats_max,
-                        normalization_options,
-                    };
-
-                    while self.to_tensor_info.len() < i {
-                        self.to_tensor_info.push(None);
-                    }
-                    self.to_tensor_info
-                        .push(Some(ToTensorInfo::Image(img_info)));
-                } else if let Some(props) = content.content_properties_as_audio_properties() {
-                    let input_shape = self.input_shape.get(i).unwrap();
-                    let num_channels = props.channels();
-                    if num_channels == 0 {
-                        return Err(Error::ModelParseError(format!(
-                            "Audio input tensor `{}`, num channel cannot be zero",
-                            i
-                        )));
-                    }
-                    let input_buffer_size = input_shape.iter().fold(1, |mul, &val| mul * val);
-                    if input_buffer_size % num_channels as usize != 0 {
-                        return Err(Error::ModelParseError(format!(
-                            "Input tensor size `{}` should be a multiplier of the number of channels `{}`",
-                            input_buffer_size, num_channels
-                        )));
-                    }
-                    let num_samples = *input_shape.last().unwrap() as u32 / num_channels;
-                    let audio_info = AudioToTensorInfo {
-                        num_channels,
-                        num_samples,
-                        sample_rate: props.sample_rate(),
-                        num_overlapping_samples: 0,
-                        tensor_type: self.input_types.get(i).unwrap().clone(),
-                    };
-
-                    while self.to_tensor_info.len() < i {
-                        self.to_tensor_info.push(None);
-                    }
-                    self.to_tensor_info
-                        .push(Some(ToTensorInfo::Audio(audio_info)));
-                } else {
-                    // do nothing
+                #[cfg(feature = "audio")]
+                if let Some(props) = content.content_properties_as_audio_properties() {
+                    self.parse_audio_model_input_info(i, props)?;
                 }
             }
         }
+
+        #[cfg(feature = "text")]
+        self.parse_text_model_input_info(&subgraph)?;
+
         self.output_tensor_metadata = subgraph.output_tensor_metadata();
         if let Some(output_tensors) = self.output_tensor_metadata {
             let len = output_tensors.len();
@@ -345,13 +251,304 @@ impl<'buf> TfLiteModelResource<'buf> {
         Ok(())
     }
 
+    #[cfg(feature = "vision")]
+    #[inline]
+    fn parse_vision_model_input_info(
+        &mut self,
+        i: usize,
+        input: &tflite_metadata::TensorMetadata<'buf>,
+        props: tflite_metadata::ImageProperties<'buf>,
+    ) -> Result<(), Error> {
+        let (height, width) = if let Some(shape) = self.input_shape.get(i) {
+            if shape.len() == 4 && shape[0] == 1 && (shape[3] == 3 || shape[3] == 1) {
+                (shape[1] as u32, shape[2] as u32)
+            } else {
+                return Ok(());
+            }
+        } else {
+            return Ok(());
+        };
+        let (stats_min, stats_max) = if let Some(stats) = input.stats() {
+            let min = if let Some(m) = stats.min() {
+                m.iter().collect()
+            } else {
+                vec![]
+            };
+            let max = if let Some(m) = stats.max() {
+                m.iter().collect()
+            } else {
+                vec![]
+            };
+            (min, max)
+        } else {
+            (vec![], vec![])
+        };
+
+        let mut normalization_options = (vec![], vec![]);
+        if let Some(n) = input.process_units() {
+            for i in 0..n.len() {
+                if let Some(p) = n.get(i).options_as_normalization_options() {
+                    normalization_options.0 = if let Some(m) = p.mean() {
+                        m.iter().collect()
+                    } else {
+                        vec![]
+                    };
+                    normalization_options.1 = if let Some(m) = p.std_() {
+                        m.iter().collect()
+                    } else {
+                        vec![]
+                    };
+                    break;
+                }
+            }
+        }
+
+        let color_space = match props.color_space() {
+            tflite_metadata::ColorSpaceType::RGB => ImageColorSpaceType::RGB,
+            tflite_metadata::ColorSpaceType::GRAYSCALE => ImageColorSpaceType::GRAYSCALE,
+            _ => ImageColorSpaceType::UNKNOWN,
+        };
+        let img_info = ImageToTensorInfo {
+            image_data_layout: ImageDataLayout::NHWC,
+            color_space,
+            tensor_type: self.input_types.get(i).unwrap().clone(),
+            width,
+            height,
+            stats_min,
+            stats_max,
+            normalization_options,
+        };
+
+        while self.to_tensor_info.len() < i {
+            self.to_tensor_info.push(None);
+        }
+        self.to_tensor_info
+            .push(Some(ToTensorInfo::Image(img_info)));
+
+        Ok(())
+    }
+
+    #[cfg(feature = "audio")]
+    #[inline]
+    fn parse_audio_model_input_info(
+        &mut self,
+        i: usize,
+        props: tflite_metadata::AudioProperties<'buf>,
+    ) -> Result<(), Error> {
+        let input_shape = self.input_shape.get(i).unwrap();
+        let num_channels = props.channels();
+        if num_channels == 0 {
+            return Err(Error::ModelParseError(format!(
+                "Audio input tensor `{}`, num channel cannot be zero",
+                i
+            )));
+        }
+        let input_buffer_size = input_shape.iter().fold(1, |mul, &val| mul * val);
+        if input_buffer_size % num_channels as usize != 0 {
+            return Err(Error::ModelParseError(format!(
+                "Input tensor size `{}` should be a multiplier of the number of channels `{}`",
+                input_buffer_size, num_channels
+            )));
+        }
+        let num_samples = *input_shape.last().unwrap() as u32 / num_channels;
+        let audio_info = AudioToTensorInfo {
+            num_channels,
+            num_samples,
+            sample_rate: props.sample_rate(),
+            num_overlapping_samples: 0,
+            tensor_type: self.input_types.get(i).unwrap().clone(),
+        };
+
+        while self.to_tensor_info.len() < i {
+            self.to_tensor_info.push(None);
+        }
+        self.to_tensor_info
+            .push(Some(ToTensorInfo::Audio(audio_info)));
+        Ok(())
+    }
+
+    #[cfg(feature = "text")]
+    fn parse_text_model_input_info(
+        &mut self,
+        subgraph: &tflite_metadata::SubGraphMetadata<'buf>,
+    ) -> Result<(), Error> {
+        // bert model
+        if let Some(process_units) = subgraph.input_process_units() {
+            for i in 0..process_units.len() {
+                if let Some(b) = process_units.get(i).options_as_bert_tokenizer_options() {
+                    if self.input_shape.len() != 3 {
+                        return Err(Error::ModelParseError(format!(
+                            "Model input tensors must be `3` in bert model, but got `{}`",
+                            self.input_shape.len()
+                        )));
+                    }
+                    let max_seq_len = Self::get_max_seq_len(&self.input_shape)?;
+
+                    let mut f = self.process_vocab_files(b.vocab_file())?;
+                    let mut token_index_map = HashMap::new();
+                    let mut index = 0;
+                    while let Some(v) = f.next_line() {
+                        token_index_map.insert(v, index);
+                        index += 1;
+                    }
+
+                    let text_model_input =
+                        TextToTensorInfo::new_bert_model(max_seq_len, token_index_map)?;
+                    self.to_tensor_info.clear();
+                    self.to_tensor_info
+                        .push(Some(ToTensorInfo::Text(text_model_input)));
+                    break;
+                }
+            }
+        }
+        // regex model
+        if self.to_tensor_info.is_empty() && self.input_types.len() == 1 {
+            let input_tensor = subgraph.input_tensor_metadata().unwrap().get(0);
+            if let Some(process_units) = input_tensor.process_units() {
+                for i in 0..process_units.len() {
+                    if let Some(r) = process_units.get(i).options_as_regex_tokenizer_options() {
+                        let max_seq_len = Self::get_max_seq_len(&self.input_shape)?;
+                        let delim_regex_pattern = match r.delim_regex_pattern() {
+                            None => {
+                                return Err(Error::ModelParseError(
+                                    "Cannot find delim regex pattern information for regex model."
+                                        .into(),
+                                ));
+                            }
+                            Some(d) => d,
+                        };
+
+                        let mut f = self.process_vocab_files(r.vocab_file())?;
+                        let mut token_index_map = HashMap::new();
+                        loop {
+                            let (token, index) = f.next_line_with_split_white_space();
+                            if token.is_none() {
+                                break;
+                            }
+                            let token = token.unwrap();
+                            if index.is_none() {
+                                return Err(Error::ModelParseError(format!(
+                                    "Cannot found index in vocab file at `{}`",
+                                    token
+                                )));
+                            }
+                            let index = index.as_ref().unwrap().parse().map_err(|e| {
+                                Error::ModelParseError(format!(
+                                    "Cannot parse vocab file index: `{:?}`",
+                                    e
+                                ))
+                            })?;
+                            token_index_map.insert(token.clone(), index);
+                        }
+
+                        let text_model_input = TextToTensorInfo::new_regex_model(
+                            max_seq_len,
+                            delim_regex_pattern,
+                            token_index_map,
+                        )?;
+                        self.to_tensor_info
+                            .push(Some(ToTensorInfo::Text(text_model_input)));
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "text")]
+    #[inline]
+    fn process_vocab_files(
+        &mut self,
+        files: Option<
+            flatbuffers::Vector<
+                'buf,
+                flatbuffers::ForwardsUOffset<tflite_metadata::AssociatedFile<'buf>>,
+            >,
+        >,
+    ) -> Result<MemoryTextFile<'buf>, Error> {
+        if files.is_none() || files.unwrap().len() == 0 {
+            return Err(Error::ModelParseError(
+                "No vocab files have been found".into(),
+            ));
+        }
+        let files = files.unwrap();
+        if files.len() > 1 {
+            // todo: multi vocab files
+            return Err(Error::ModelParseError(format!(
+                "Now only support one vocab file, but got `{}`",
+                files.len()
+            )));
+        }
+        let filename = if let Some(n) = files.get(0).name() {
+            n
+        } else {
+            return Err(Error::ModelParseError(
+                "Cannot get associated filename.".into(),
+            ));
+        };
+        Ok(MemoryTextFile::new(self.get_file_content(filename)?))
+    }
+
+    // for bert and regex model.
+    #[cfg(feature = "text")]
     #[inline(always)]
-    fn tflite_type_parse(tflite_type: tflite::TensorType) -> Result<TensorType, Error> {
+    fn get_max_seq_len(input_shape: &Vec<Vec<usize>>) -> Result<u32, Error> {
+        if input_shape.is_empty() {
+            return Err(Error::ModelParseError(format!(
+                "Input tensor shape is empty!"
+            )));
+        }
+        for shape in input_shape.iter() {
+            if shape.len() != 2 {
+                return Err(Error::ModelParseError(format!(
+                    "Model should take 2-D input tensors, but got shape `{:?}`",
+                    shape
+                )));
+            }
+            if shape[0] != 1 {
+                return Err(Error::ModelParseError(format!(
+                    "Model batch size must be `1`, but got `{}`",
+                    shape[0]
+                )));
+            }
+        }
+        let res = input_shape[0][1];
+        for shape in input_shape.iter() {
+            if res != shape[1] {
+                return Err(Error::ModelParseError(format!(
+                    "Model input tensors don't have the same shape."
+                )));
+            }
+        }
+        Ok(res as u32)
+    }
+
+    #[inline(always)]
+    fn get_file_content(&self, filename: &str) -> Result<&'buf [u8], Error> {
+        if self.associated_files.is_none() {
+            return Err(Error::ModelParseError(
+                "No associated files have been found in model asset.".into(),
+            ));
+        }
+        match self.associated_files.as_ref().unwrap().get_file(filename) {
+            Some(c) => Ok(c),
+            None => {
+                return Err(Error::ModelParseError(format!(
+                    "Cannot find associated file `{}`",
+                    filename
+                )))
+            }
+        }
+    }
+
+    #[inline(always)]
+    fn tflite_type_parse(tflite_type: tflite_model::TensorType) -> Result<TensorType, Error> {
         match tflite_type {
-            tflite::TensorType::FLOAT32 => Ok(TensorType::F32),
-            tflite::TensorType::UINT8 => Ok(TensorType::U8),
-            tflite::TensorType::INT32 => Ok(TensorType::I32),
-            tflite::TensorType::FLOAT16 => Ok(TensorType::F16),
+            tflite_model::TensorType::FLOAT32 => Ok(TensorType::F32),
+            tflite_model::TensorType::UINT8 => Ok(TensorType::U8),
+            tflite_model::TensorType::INT32 => Ok(TensorType::I32),
+            tflite_model::TensorType::FLOAT16 => Ok(TensorType::F16),
             _ => Err(Error::ModelParseError(format!(
                 "Unsupported tensor type `{:?}`",
                 tflite_type
@@ -363,10 +560,6 @@ impl<'buf> TfLiteModelResource<'buf> {
 impl<'buf> ModelResourceTrait for TfLiteModelResource<'buf> {
     fn model_backend(&self) -> GraphEncoding {
         return GraphEncoding::TensorflowLite;
-    }
-
-    fn data_layout(&self) -> DataLayout {
-        DataLayout::NHWC
     }
 
     fn input_tensor_count(&self) -> usize {
@@ -435,11 +628,6 @@ impl<'buf> ModelResourceTrait for TfLiteModelResource<'buf> {
                                     )))
                                 }
                             };
-                            if self.associated_files.is_none() {
-                                return Err(Error::ModelParseError(
-                                    "No associated files have been found in model asset.".into(),
-                                ));
-                            }
                             let l_ref = if let Some(name) = f.locale() {
                                 if name != locale_name {
                                     continue;
@@ -448,15 +636,7 @@ impl<'buf> ModelResourceTrait for TfLiteModelResource<'buf> {
                             } else {
                                 &mut l
                             };
-                            match self.associated_files.as_ref().unwrap().get_file(file_name) {
-                                Some(c) => *l_ref = Some(c),
-                                None => {
-                                    return Err(Error::ModelParseError(format!(
-                                        "Cannot find associated file `{}`",
-                                        file_name
-                                    )))
-                                }
-                            }
+                            *l_ref = Some(self.get_file_content(file_name)?);
                         }
                     }
                 }
@@ -474,6 +654,7 @@ impl<'buf> ModelResourceTrait for TfLiteModelResource<'buf> {
         Ok((l.unwrap(), locale))
     }
 
+    #[cfg(feature = "vision")]
     fn output_bounding_box_properties(&self, index: usize, slice: &mut [usize]) -> bool {
         if let Some(o) = self.output_tensor_metadata {
             if index < o.len() {
@@ -494,6 +675,7 @@ impl<'buf> ModelResourceTrait for TfLiteModelResource<'buf> {
         false
     }
 
+    #[cfg(feature = "vision")]
     fn image_to_tensor_info(&self, input_index: usize) -> Option<&ImageToTensorInfo> {
         if let Some(t) = self.to_tensor_info.get(input_index) {
             if let ToTensorInfo::Image(i) = t.as_ref().unwrap() {
@@ -503,10 +685,26 @@ impl<'buf> ModelResourceTrait for TfLiteModelResource<'buf> {
         None
     }
 
+    #[cfg(feature = "audio")]
     fn audio_to_tensor_info(&self, input_index: usize) -> Option<&AudioToTensorInfo> {
         if let Some(t) = self.to_tensor_info.get(input_index) {
             if let ToTensorInfo::Audio(a) = t.as_ref().unwrap() {
                 return Some(a);
+            }
+        }
+        None
+    }
+
+    /// return the text to tensor information and vocab file contents
+    #[cfg(feature = "text")]
+    #[cfg_attr(
+        not(any(feature = "vision", feature = "audio")),
+        allow(irrefutable_let_patterns)
+    )]
+    fn text_to_tensor_info(&self) -> Option<&TextToTensorInfo> {
+        if let Some(t) = self.to_tensor_info.get(0) {
+            if let ToTensorInfo::Text(t) = t.as_ref().unwrap() {
+                return Some(t);
             }
         }
         None
