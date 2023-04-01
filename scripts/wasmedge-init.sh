@@ -10,7 +10,7 @@ export WASMEDGE_VERSION=0.12.0-alpha.2
 
 build_wasmedge_with_nn_tflite() {
   # install requirements
-  apt update && apt install software-properties-common libboost-all-dev llvm-14-dev liblld-14-dev cmake ninja-build gcc g++ -y
+  apt update && apt install git software-properties-common libboost-all-dev llvm-14-dev liblld-14-dev cmake ninja-build gcc g++ -y
 
   REPO_CURL="https://github.com/yanghaku/WasmEdge.git"
   REPO_BRANCH="fix_wasi_nn_tflite_bugs"
