@@ -474,13 +474,13 @@ pub mod tflite {
         since = "2.0.0",
         note = "Use associated constants instead. This will no longer be generated in 2021."
     )]
-    pub const ENUM_MAX_BUILTIN_OPERATOR: i32 = 158;
+    pub const ENUM_MAX_BUILTIN_OPERATOR: i32 = 161;
     #[deprecated(
         since = "2.0.0",
         note = "Use associated constants instead. This will no longer be generated in 2021."
     )]
     #[allow(non_camel_case_types)]
-    pub const ENUM_VALUES_BUILTIN_OPERATOR: [BuiltinOperator; 159] = [
+    pub const ENUM_VALUES_BUILTIN_OPERATOR: [BuiltinOperator; 162] = [
         BuiltinOperator::ADD,
         BuiltinOperator::AVERAGE_POOL_2D,
         BuiltinOperator::CONCATENATION,
@@ -640,6 +640,9 @@ pub mod tflite {
         BuiltinOperator::ATAN2,
         BuiltinOperator::UNSORTED_SEGMENT_MIN,
         BuiltinOperator::SIGN,
+        BuiltinOperator::BITCAST,
+        BuiltinOperator::BITWISE_XOR,
+        BuiltinOperator::RIGHT_SHIFT,
     ];
 
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -806,9 +809,12 @@ pub mod tflite {
         pub const ATAN2: Self = Self(156);
         pub const UNSORTED_SEGMENT_MIN: Self = Self(157);
         pub const SIGN: Self = Self(158);
+        pub const BITCAST: Self = Self(159);
+        pub const BITWISE_XOR: Self = Self(160);
+        pub const RIGHT_SHIFT: Self = Self(161);
 
         pub const ENUM_MIN: i32 = 0;
-        pub const ENUM_MAX: i32 = 158;
+        pub const ENUM_MAX: i32 = 161;
         pub const ENUM_VALUES: &'static [Self] = &[
             Self::ADD,
             Self::AVERAGE_POOL_2D,
@@ -969,6 +975,9 @@ pub mod tflite {
             Self::ATAN2,
             Self::UNSORTED_SEGMENT_MIN,
             Self::SIGN,
+            Self::BITCAST,
+            Self::BITWISE_XOR,
+            Self::RIGHT_SHIFT,
         ];
         /// Returns the variant's name or "" if unknown.
         pub fn variant_name(self) -> Option<&'static str> {
@@ -1132,6 +1141,9 @@ pub mod tflite {
                 Self::ATAN2 => Some("ATAN2"),
                 Self::UNSORTED_SEGMENT_MIN => Some("UNSORTED_SEGMENT_MIN"),
                 Self::SIGN => Some("SIGN"),
+                Self::BITCAST => Some("BITCAST"),
+                Self::BITWISE_XOR => Some("BITWISE_XOR"),
+                Self::RIGHT_SHIFT => Some("RIGHT_SHIFT"),
                 _ => None,
             }
         }
@@ -1197,13 +1209,13 @@ pub mod tflite {
         since = "2.0.0",
         note = "Use associated constants instead. This will no longer be generated in 2021."
     )]
-    pub const ENUM_MAX_BUILTIN_OPTIONS: u8 = 123;
+    pub const ENUM_MAX_BUILTIN_OPTIONS: u8 = 126;
     #[deprecated(
         since = "2.0.0",
         note = "Use associated constants instead. This will no longer be generated in 2021."
     )]
     #[allow(non_camel_case_types)]
-    pub const ENUM_VALUES_BUILTIN_OPTIONS: [BuiltinOptions; 124] = [
+    pub const ENUM_VALUES_BUILTIN_OPTIONS: [BuiltinOptions; 127] = [
         BuiltinOptions::NONE,
         BuiltinOptions::Conv2DOptions,
         BuiltinOptions::DepthwiseConv2DOptions,
@@ -1328,6 +1340,9 @@ pub mod tflite {
         BuiltinOptions::UnsortedSegmentSumOptions,
         BuiltinOptions::ATan2Options,
         BuiltinOptions::SignOptions,
+        BuiltinOptions::BitcastOptions,
+        BuiltinOptions::BitwiseXorOptions,
+        BuiltinOptions::RightShiftOptions,
     ];
 
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -1459,9 +1474,12 @@ pub mod tflite {
         pub const UnsortedSegmentSumOptions: Self = Self(121);
         pub const ATan2Options: Self = Self(122);
         pub const SignOptions: Self = Self(123);
+        pub const BitcastOptions: Self = Self(124);
+        pub const BitwiseXorOptions: Self = Self(125);
+        pub const RightShiftOptions: Self = Self(126);
 
         pub const ENUM_MIN: u8 = 0;
-        pub const ENUM_MAX: u8 = 123;
+        pub const ENUM_MAX: u8 = 126;
         pub const ENUM_VALUES: &'static [Self] = &[
             Self::NONE,
             Self::Conv2DOptions,
@@ -1587,6 +1605,9 @@ pub mod tflite {
             Self::UnsortedSegmentSumOptions,
             Self::ATan2Options,
             Self::SignOptions,
+            Self::BitcastOptions,
+            Self::BitwiseXorOptions,
+            Self::RightShiftOptions,
         ];
         /// Returns the variant's name or "" if unknown.
         pub fn variant_name(self) -> Option<&'static str> {
@@ -1719,6 +1740,9 @@ pub mod tflite {
                 Self::UnsortedSegmentSumOptions => Some("UnsortedSegmentSumOptions"),
                 Self::ATan2Options => Some("ATan2Options"),
                 Self::SignOptions => Some("SignOptions"),
+                Self::BitcastOptions => Some("BitcastOptions"),
+                Self::BitwiseXorOptions => Some("BitwiseXorOptions"),
+                Self::RightShiftOptions => Some("RightShiftOptions"),
                 _ => None,
             }
         }
@@ -18218,6 +18242,243 @@ pub mod tflite {
             ds.finish()
         }
     }
+    pub enum BitcastOptionsOffset {}
+    #[derive(Copy, Clone, PartialEq)]
+
+    pub struct BitcastOptions<'a> {
+        pub _tab: flatbuffers::Table<'a>,
+    }
+
+    impl<'a> flatbuffers::Follow<'a> for BitcastOptions<'a> {
+        type Inner = BitcastOptions<'a>;
+        #[inline]
+        unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+            Self {
+                _tab: flatbuffers::Table::new(buf, loc),
+            }
+        }
+    }
+
+    impl<'a> BitcastOptions<'a> {
+        #[inline]
+        pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+            BitcastOptions { _tab: table }
+        }
+        #[allow(unused_mut)]
+        pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+            _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+            _args: &'args BitcastOptionsArgs,
+        ) -> flatbuffers::WIPOffset<BitcastOptions<'bldr>> {
+            let mut builder = BitcastOptionsBuilder::new(_fbb);
+            builder.finish()
+        }
+    }
+
+    impl flatbuffers::Verifiable for BitcastOptions<'_> {
+        #[inline]
+        fn run_verifier(
+            v: &mut flatbuffers::Verifier,
+            pos: usize,
+        ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+            use self::flatbuffers::Verifiable;
+            v.visit_table(pos)?.finish();
+            Ok(())
+        }
+    }
+    pub struct BitcastOptionsArgs {}
+    impl<'a> Default for BitcastOptionsArgs {
+        #[inline]
+        fn default() -> Self {
+            BitcastOptionsArgs {}
+        }
+    }
+
+    pub struct BitcastOptionsBuilder<'a: 'b, 'b> {
+        fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+        start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+    }
+    impl<'a: 'b, 'b> BitcastOptionsBuilder<'a, 'b> {
+        #[inline]
+        pub fn new(
+            _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+        ) -> BitcastOptionsBuilder<'a, 'b> {
+            let start = _fbb.start_table();
+            BitcastOptionsBuilder {
+                fbb_: _fbb,
+                start_: start,
+            }
+        }
+        #[inline]
+        pub fn finish(self) -> flatbuffers::WIPOffset<BitcastOptions<'a>> {
+            let o = self.fbb_.end_table(self.start_);
+            flatbuffers::WIPOffset::new(o.value())
+        }
+    }
+
+    impl core::fmt::Debug for BitcastOptions<'_> {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            let mut ds = f.debug_struct("BitcastOptions");
+            ds.finish()
+        }
+    }
+    pub enum BitwiseXorOptionsOffset {}
+    #[derive(Copy, Clone, PartialEq)]
+
+    pub struct BitwiseXorOptions<'a> {
+        pub _tab: flatbuffers::Table<'a>,
+    }
+
+    impl<'a> flatbuffers::Follow<'a> for BitwiseXorOptions<'a> {
+        type Inner = BitwiseXorOptions<'a>;
+        #[inline]
+        unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+            Self {
+                _tab: flatbuffers::Table::new(buf, loc),
+            }
+        }
+    }
+
+    impl<'a> BitwiseXorOptions<'a> {
+        #[inline]
+        pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+            BitwiseXorOptions { _tab: table }
+        }
+        #[allow(unused_mut)]
+        pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+            _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+            _args: &'args BitwiseXorOptionsArgs,
+        ) -> flatbuffers::WIPOffset<BitwiseXorOptions<'bldr>> {
+            let mut builder = BitwiseXorOptionsBuilder::new(_fbb);
+            builder.finish()
+        }
+    }
+
+    impl flatbuffers::Verifiable for BitwiseXorOptions<'_> {
+        #[inline]
+        fn run_verifier(
+            v: &mut flatbuffers::Verifier,
+            pos: usize,
+        ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+            use self::flatbuffers::Verifiable;
+            v.visit_table(pos)?.finish();
+            Ok(())
+        }
+    }
+    pub struct BitwiseXorOptionsArgs {}
+    impl<'a> Default for BitwiseXorOptionsArgs {
+        #[inline]
+        fn default() -> Self {
+            BitwiseXorOptionsArgs {}
+        }
+    }
+
+    pub struct BitwiseXorOptionsBuilder<'a: 'b, 'b> {
+        fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+        start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+    }
+    impl<'a: 'b, 'b> BitwiseXorOptionsBuilder<'a, 'b> {
+        #[inline]
+        pub fn new(
+            _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+        ) -> BitwiseXorOptionsBuilder<'a, 'b> {
+            let start = _fbb.start_table();
+            BitwiseXorOptionsBuilder {
+                fbb_: _fbb,
+                start_: start,
+            }
+        }
+        #[inline]
+        pub fn finish(self) -> flatbuffers::WIPOffset<BitwiseXorOptions<'a>> {
+            let o = self.fbb_.end_table(self.start_);
+            flatbuffers::WIPOffset::new(o.value())
+        }
+    }
+
+    impl core::fmt::Debug for BitwiseXorOptions<'_> {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            let mut ds = f.debug_struct("BitwiseXorOptions");
+            ds.finish()
+        }
+    }
+    pub enum RightShiftOptionsOffset {}
+    #[derive(Copy, Clone, PartialEq)]
+
+    pub struct RightShiftOptions<'a> {
+        pub _tab: flatbuffers::Table<'a>,
+    }
+
+    impl<'a> flatbuffers::Follow<'a> for RightShiftOptions<'a> {
+        type Inner = RightShiftOptions<'a>;
+        #[inline]
+        unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+            Self {
+                _tab: flatbuffers::Table::new(buf, loc),
+            }
+        }
+    }
+
+    impl<'a> RightShiftOptions<'a> {
+        #[inline]
+        pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+            RightShiftOptions { _tab: table }
+        }
+        #[allow(unused_mut)]
+        pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+            _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+            _args: &'args RightShiftOptionsArgs,
+        ) -> flatbuffers::WIPOffset<RightShiftOptions<'bldr>> {
+            let mut builder = RightShiftOptionsBuilder::new(_fbb);
+            builder.finish()
+        }
+    }
+
+    impl flatbuffers::Verifiable for RightShiftOptions<'_> {
+        #[inline]
+        fn run_verifier(
+            v: &mut flatbuffers::Verifier,
+            pos: usize,
+        ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+            use self::flatbuffers::Verifiable;
+            v.visit_table(pos)?.finish();
+            Ok(())
+        }
+    }
+    pub struct RightShiftOptionsArgs {}
+    impl<'a> Default for RightShiftOptionsArgs {
+        #[inline]
+        fn default() -> Self {
+            RightShiftOptionsArgs {}
+        }
+    }
+
+    pub struct RightShiftOptionsBuilder<'a: 'b, 'b> {
+        fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+        start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+    }
+    impl<'a: 'b, 'b> RightShiftOptionsBuilder<'a, 'b> {
+        #[inline]
+        pub fn new(
+            _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+        ) -> RightShiftOptionsBuilder<'a, 'b> {
+            let start = _fbb.start_table();
+            RightShiftOptionsBuilder {
+                fbb_: _fbb,
+                start_: start,
+            }
+        }
+        #[inline]
+        pub fn finish(self) -> flatbuffers::WIPOffset<RightShiftOptions<'a>> {
+            let o = self.fbb_.end_table(self.start_);
+            flatbuffers::WIPOffset::new(o.value())
+        }
+    }
+
+    impl core::fmt::Debug for RightShiftOptions<'_> {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            let mut ds = f.debug_struct("RightShiftOptions");
+            ds.finish()
+        }
+    }
     pub enum OperatorCodeOffset {}
     #[derive(Copy, Clone, PartialEq)]
 
@@ -20491,6 +20752,51 @@ pub mod tflite {
                 None
             }
         }
+
+        #[inline]
+        #[allow(non_snake_case)]
+        pub fn builtin_options_as_bitcast_options(&self) -> Option<BitcastOptions<'a>> {
+            if self.builtin_options_type() == BuiltinOptions::BitcastOptions {
+                self.builtin_options().map(|t| {
+                    // Safety:
+                    // Created from a valid Table for this object
+                    // Which contains a valid union in this slot
+                    unsafe { BitcastOptions::init_from_table(t) }
+                })
+            } else {
+                None
+            }
+        }
+
+        #[inline]
+        #[allow(non_snake_case)]
+        pub fn builtin_options_as_bitwise_xor_options(&self) -> Option<BitwiseXorOptions<'a>> {
+            if self.builtin_options_type() == BuiltinOptions::BitwiseXorOptions {
+                self.builtin_options().map(|t| {
+                    // Safety:
+                    // Created from a valid Table for this object
+                    // Which contains a valid union in this slot
+                    unsafe { BitwiseXorOptions::init_from_table(t) }
+                })
+            } else {
+                None
+            }
+        }
+
+        #[inline]
+        #[allow(non_snake_case)]
+        pub fn builtin_options_as_right_shift_options(&self) -> Option<RightShiftOptions<'a>> {
+            if self.builtin_options_type() == BuiltinOptions::RightShiftOptions {
+                self.builtin_options().map(|t| {
+                    // Safety:
+                    // Created from a valid Table for this object
+                    // Which contains a valid union in this slot
+                    unsafe { RightShiftOptions::init_from_table(t) }
+                })
+            } else {
+                None
+            }
+        }
     }
 
     impl flatbuffers::Verifiable for Operator<'_> {
@@ -20629,6 +20935,9 @@ pub mod tflite {
           BuiltinOptions::UnsortedSegmentSumOptions => v.verify_union_variant::<flatbuffers::ForwardsUOffset<UnsortedSegmentSumOptions>>("BuiltinOptions::UnsortedSegmentSumOptions", pos),
           BuiltinOptions::ATan2Options => v.verify_union_variant::<flatbuffers::ForwardsUOffset<ATan2Options>>("BuiltinOptions::ATan2Options", pos),
           BuiltinOptions::SignOptions => v.verify_union_variant::<flatbuffers::ForwardsUOffset<SignOptions>>("BuiltinOptions::SignOptions", pos),
+          BuiltinOptions::BitcastOptions => v.verify_union_variant::<flatbuffers::ForwardsUOffset<BitcastOptions>>("BuiltinOptions::BitcastOptions", pos),
+          BuiltinOptions::BitwiseXorOptions => v.verify_union_variant::<flatbuffers::ForwardsUOffset<BitwiseXorOptions>>("BuiltinOptions::BitwiseXorOptions", pos),
+          BuiltinOptions::RightShiftOptions => v.verify_union_variant::<flatbuffers::ForwardsUOffset<RightShiftOptions>>("BuiltinOptions::RightShiftOptions", pos),
           _ => Ok(()),
         }
      })?
@@ -21993,6 +22302,36 @@ pub mod tflite {
                 }
                 BuiltinOptions::SignOptions => {
                     if let Some(x) = self.builtin_options_as_sign_options() {
+                        ds.field("builtin_options", &x)
+                    } else {
+                        ds.field(
+                            "builtin_options",
+                            &"InvalidFlatbuffer: Union discriminant does not match value.",
+                        )
+                    }
+                }
+                BuiltinOptions::BitcastOptions => {
+                    if let Some(x) = self.builtin_options_as_bitcast_options() {
+                        ds.field("builtin_options", &x)
+                    } else {
+                        ds.field(
+                            "builtin_options",
+                            &"InvalidFlatbuffer: Union discriminant does not match value.",
+                        )
+                    }
+                }
+                BuiltinOptions::BitwiseXorOptions => {
+                    if let Some(x) = self.builtin_options_as_bitwise_xor_options() {
+                        ds.field("builtin_options", &x)
+                    } else {
+                        ds.field(
+                            "builtin_options",
+                            &"InvalidFlatbuffer: Union discriminant does not match value.",
+                        )
+                    }
+                }
+                BuiltinOptions::RightShiftOptions => {
+                    if let Some(x) = self.builtin_options_as_right_shift_options() {
                         ds.field("builtin_options", &x)
                     } else {
                         ds.field(
