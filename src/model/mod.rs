@@ -1,14 +1,22 @@
+#![allow(unused)]
+
 use crate::postprocess::QuantizationParameters;
-use crate::preprocess::vision::{DataLayout, ImageToTensorInfo};
+use crate::preprocess::ToTensorInfo;
 use crate::{Error, GraphEncoding, TensorType};
+use std::collections::HashMap;
+
+#[cfg(feature = "audio")]
+use crate::preprocess::audio::AudioToTensorInfo;
+#[cfg(feature = "text")]
+use crate::preprocess::text::TextToTensorInfo;
+#[cfg(feature = "vision")]
+use crate::preprocess::vision::{ImageColorSpaceType, ImageDataLayout, ImageToTensorInfo};
 
 /// Abstraction for model resources.
 /// Users can use this trait to get information for models, such as data layout, model backend, etc.
 /// Now it supports ```TensorFlowLite``` backend.
 pub trait ModelResourceTrait {
     fn model_backend(&self) -> GraphEncoding;
-
-    fn data_layout(&self) -> DataLayout;
 
     fn input_tensor_count(&self) -> usize;
 
@@ -29,9 +37,24 @@ pub trait ModelResourceTrait {
     fn output_tensor_quantization_parameters(&self, index: usize)
         -> Option<QuantizationParameters>;
 
+    fn output_tensor_labels_locale(
+        &self,
+        index: usize,
+        locale: &str,
+    ) -> Result<(&[u8], Option<&[u8]>), Error>;
+
+    #[cfg(feature = "vision")]
     fn output_bounding_box_properties(&self, index: usize, slice: &mut [usize]) -> bool;
 
+    #[cfg(feature = "vision")]
     fn image_to_tensor_info(&self, input_index: usize) -> Option<&ImageToTensorInfo>;
+
+    #[cfg(feature = "audio")]
+    fn audio_to_tensor_info(&self, input_index: usize) -> Option<&AudioToTensorInfo>;
+
+    /// return the text to tensor information and vocab file contents
+    #[cfg(feature = "text")]
+    fn text_to_tensor_info(&self) -> Option<&TextToTensorInfo>;
 }
 
 #[inline]
@@ -79,6 +102,16 @@ macro_rules! tensor_byte_size {
     };
 }
 
+macro_rules! tensor_bytes {
+    ( $tensor_type:expr, $tensor_shape:ident ) => {{
+        let mut b = tensor_byte_size!($tensor_type);
+        for s in $tensor_shape {
+            b *= s;
+        }
+        b
+    }};
+}
+
 macro_rules! check_quantization_parameters {
     ( $tensor_type:ident, $q:ident, $i:expr ) => {
         if $tensor_type == crate::TensorType::U8 && $q.is_none() {
@@ -90,4 +123,9 @@ macro_rules! check_quantization_parameters {
     };
 }
 
+mod memory_text_file;
 mod tflite;
+mod zip;
+
+pub(crate) use memory_text_file::MemoryTextFile;
+use zip::ZipFiles;

@@ -39,16 +39,15 @@ fn image_classification_task_run(model_asset_path: String) {
         .unwrap();
     eprintln!("{}", res);
     // banana: 954
-    assert_eq!(
-        res.classifications
-            .get(0)
-            .unwrap()
-            .categories
-            .get(0)
-            .unwrap()
-            .index,
-        954
-    );
+    let top = res
+        .classifications
+        .get(0)
+        .unwrap()
+        .categories
+        .get(0)
+        .unwrap();
+    assert_eq!(top.index, 954);
+    assert_eq!(top.category_name.as_ref().unwrap().as_str(), "banana");
 }
 
 #[test]
@@ -64,5 +63,21 @@ fn test_bird_from_tf_hub() {
         .unwrap()
         .classify(&image::open(IMAGE).unwrap())
         .unwrap();
+    assert_eq!(
+        res.classifications[0].categories[0]
+            .category_name
+            .as_ref()
+            .unwrap()
+            .as_str(),
+        "/m/01bwb9"
+    );
+    assert_eq!(
+        res.classifications[0].categories[0]
+            .display_name
+            .as_ref()
+            .unwrap()
+            .as_str(),
+        "Passer domesticus"
+    );
     eprintln!("{}", res);
 }

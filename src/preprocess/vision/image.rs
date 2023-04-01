@@ -4,7 +4,7 @@ use super::super::*;
 
 /// Data layout in memory for image tensor. ```NCHW```, ```NHWC```, ```CHWN```.
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy, Clone)]
-pub enum DataLayout {
+pub enum ImageDataLayout {
     NCHW,
     NHWC,
     CHWN,
@@ -21,6 +21,7 @@ pub enum ImageColorSpaceType {
 /// Necessary information for the image to tensor.
 #[derive(Debug)]
 pub struct ImageToTensorInfo {
+    pub image_data_layout: ImageDataLayout,
     pub color_space: ImageColorSpaceType,
     pub tensor_type: TensorType,
     pub width: u32,
@@ -49,15 +50,15 @@ mod image_crate_type_impl {
         }};
     }
 
-    impl ToTensor<'static> for DynamicImage {
-        type OutputType = Vec<u8>;
-
+    impl ToTensor for DynamicImage {
         #[inline]
-        fn to_tensor(
+        fn to_tensors(
             &self,
             input_index: usize,
             model_resource: &Box<dyn ModelResourceTrait>,
-        ) -> Result<Self::OutputType, Error> {
+            output_buffers: &mut [impl AsMut<[u8]>],
+        ) -> Result<(), Error> {
+            debug_assert_eq!(output_buffers.len(), 1);
             let info = model_resource_check_and_get_impl!(
                 model_resource,
                 image_to_tensor_info,
@@ -70,6 +71,7 @@ mod image_crate_type_impl {
                     input_index,
                     model_resource,
                     info,
+                    &mut output_buffers[0],
                 )
             } else {
                 match info.color_space {
@@ -79,9 +81,21 @@ mod image_crate_type_impl {
                     // we treat unknown as rgb8
                     ImageColorSpaceType::RGB | ImageColorSpaceType::UNKNOWN => {
                         if let Some(rgb) = self.as_rgb8() {
-                            rgb8_image_to_tensor(rgb, input_index, model_resource, info)
+                            rgb8_image_to_tensor(
+                                rgb,
+                                input_index,
+                                model_resource,
+                                info,
+                                &mut output_buffers[0],
+                            )
                         } else {
-                            rgb8_image_to_tensor(&self.to_rgb8(), input_index, model_resource, info)
+                            rgb8_image_to_tensor(
+                                &self.to_rgb8(),
+                                input_index,
+                                model_resource,
+                                info,
+                                &mut output_buffers[0],
+                            )
                         }
                     }
                 }
@@ -89,14 +103,15 @@ mod image_crate_type_impl {
         }
     }
 
-    impl ToTensor<'static> for RgbImage {
-        type OutputType = Vec<u8>;
+    impl ToTensor for RgbImage {
         #[inline]
-        fn to_tensor(
+        fn to_tensors(
             &self,
             input_index: usize,
             model_resource: &Box<dyn ModelResourceTrait>,
-        ) -> Result<Self::OutputType, Error> {
+            output_buffers: &mut [impl AsMut<[u8]>],
+        ) -> Result<(), Error> {
+            debug_assert_eq!(output_buffers.len(), 1);
             let info = model_resource_check_and_get_impl!(
                 model_resource,
                 image_to_tensor_info,
@@ -112,10 +127,22 @@ mod image_crate_type_impl {
                     dynamic_img =
                         dynamic_img.resize_exact(info.width, info.height, IMAGE_RESIZE_FILTER);
                 }
-                return dynamic_image_into_tensor(dynamic_img, input_index, model_resource, info);
+                return dynamic_image_into_tensor(
+                    dynamic_img,
+                    input_index,
+                    model_resource,
+                    info,
+                    &mut output_buffers[0],
+                );
             }
 
-            rgb8_image_to_tensor(self, input_index, model_resource, info)
+            rgb8_image_to_tensor(
+                self,
+                input_index,
+                model_resource,
+                info,
+                &mut output_buffers[0],
+            )
         }
     }
 
@@ -125,16 +152,21 @@ mod image_crate_type_impl {
         input_index: usize,
         model_resource: &Box<dyn ModelResourceTrait>,
         info: &ImageToTensorInfo,
-    ) -> Result<Vec<u8>, Error> {
+        output_buffer: &mut impl AsMut<[u8]>,
+    ) -> Result<(), Error> {
         debug_assert!(img.width() == info.width && img.height() == info.height);
         match info.color_space {
             ImageColorSpaceType::GRAYSCALE => {
                 unimplemented!()
             }
-            // we treat unknown as rgb8
-            ImageColorSpaceType::RGB | ImageColorSpaceType::UNKNOWN => {
-                rgb8_image_to_tensor(&img.into_rgb8(), input_index, model_resource, info)
-            }
+            // treat unknown as rgb8
+            ImageColorSpaceType::RGB | ImageColorSpaceType::UNKNOWN => rgb8_image_to_tensor(
+                &img.into_rgb8(),
+                input_index,
+                model_resource,
+                info,
+                output_buffer,
+            ),
         }
     }
 
@@ -144,7 +176,8 @@ mod image_crate_type_impl {
         input_index: usize,
         model_resource: &Box<dyn ModelResourceTrait>,
         info: &ImageToTensorInfo,
-    ) -> Result<Vec<u8>, Error> {
+        output_buffer: &mut impl AsMut<[u8]>,
+    ) -> Result<(), Error> {
         debug_assert!(
             img.width() == info.width
                 && img.height() == info.height
@@ -155,70 +188,69 @@ mod image_crate_type_impl {
 
         let tensor_type =
             model_resource_check_and_get_impl!(model_resource, input_tensor_type, input_index);
-        let data_layout = model_resource.data_layout();
+        let data_layout = info.image_data_layout;
+        let res = output_buffer.as_mut();
+        let mut res_index = 0;
         match tensor_type {
             TensorType::F32 => {
                 let (r_mean, r_std, g_mean, g_std, b_mean, b_std) =
                     get_rgb_mean_std_from_info!(info);
                 let bytes = img.as_bytes();
-                let mut res = Vec::with_capacity(bytes.len() * std::mem::size_of::<f32>());
+                debug_assert_eq!(res.len(), bytes.len() * std::mem::size_of::<f32>());
+
                 let hw = (img.width() * img.height()) as usize;
                 return match data_layout {
-                    DataLayout::NHWC => {
+                    ImageDataLayout::NHWC => {
                         let mut i = 0;
                         while i < bytes.len() {
                             let f = ((bytes[i] as f32) - r_mean) / r_std;
-                            res.extend(f.to_ne_bytes());
+                            res[res_index..res_index + 4].copy_from_slice(&f.to_ne_bytes());
+                            res_index += 4;
                             let f = ((bytes[i + 1] as f32) - g_mean) / g_std;
-                            res.extend(f.to_ne_bytes());
+                            res[res_index..res_index + 4].copy_from_slice(&f.to_ne_bytes());
+                            res_index += 4;
                             let f = ((bytes[i + 2] as f32) - b_mean) / b_std;
-                            res.extend(f.to_ne_bytes());
+                            res[res_index..res_index + 4].copy_from_slice(&f.to_ne_bytes());
+                            res_index += 4;
                             i += 3;
                         }
-                        Ok(res)
+                        Ok(())
                     }
-                    DataLayout::NCHW | DataLayout::CHWN => {
-                        let mut i = 0 as usize;
-                        while i < hw {
-                            let f = ((bytes[i] as f32) - r_mean) / r_std;
-                            res.extend(f.to_ne_bytes());
-                            i += 3;
+                    ImageDataLayout::NCHW | ImageDataLayout::CHWN => {
+                        for start in 0..3 {
+                            let mut i = start as usize;
+                            while i < hw {
+                                let f = ((bytes[i] as f32) - r_mean) / r_std;
+                                res[res_index..res_index + 4].copy_from_slice(&f.to_ne_bytes());
+                                res_index += 4;
+                                i += 3;
+                            }
                         }
-                        i = 1 as usize;
-                        while i < hw {
-                            let f = ((bytes[i] as f32) - g_mean) / g_std;
-                            res.extend(f.to_ne_bytes());
-                            i += 3;
-                        }
-                        i = 2 as usize;
-                        while i < hw {
-                            let f = ((bytes[i] as f32) - b_mean) / b_std;
-                            res.extend(f.to_ne_bytes());
-                            i += 3;
-                        }
-                        Ok(res)
+                        Ok(())
                     }
                 };
             }
             TensorType::U8 => {
+                let bytes = img.as_bytes();
+                debug_assert_eq!(res.len(), bytes.len());
                 return match data_layout {
-                    DataLayout::NHWC => {
+                    ImageDataLayout::NHWC => {
                         // just copy
-                        Ok(img.as_bytes().to_vec())
+                        res.copy_from_slice(bytes);
+                        Ok(())
                     }
                     // batch is always 1 now
-                    DataLayout::NCHW | DataLayout::CHWN => {
-                        let bytes = img.as_bytes();
-                        let mut res = Vec::with_capacity(bytes.len());
+                    ImageDataLayout::NCHW | ImageDataLayout::CHWN => {
                         let hw = (img.width() * img.height()) as usize;
                         for c in 0..3 {
                             let mut i = c as usize;
                             while i < hw {
-                                res.push(bytes[i]);
+                                res[res_index] = bytes[i];
+                                res_index += 1;
                                 i += c;
                             }
                         }
-                        Ok(res)
+                        Ok(())
                     }
                 };
             }

@@ -14,7 +14,7 @@ TF_LITE_SCHEMAS_URL=(
   "https://raw.githubusercontent.com/google/mediapipe/master/mediapipe/tasks/metadata/metadata_schema.fbs"
   "https://raw.githubusercontent.com/tensorflow/tensorflow/master/tensorflow/lite/schema/schema.fbs"
 )
-TF_LITE_OUT_DIR="/src/model_resource/tflite/generated"
+TF_LITE_OUT_DIR="/src/model/tflite/generated"
 
 for url in "${TF_LITE_SCHEMAS_URL[@]}"; do
   fbs="${TMP_DIR}/${url##*/}"

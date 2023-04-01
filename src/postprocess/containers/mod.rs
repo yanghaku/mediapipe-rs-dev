@@ -3,6 +3,10 @@
 
 pub(super) mod category;
 pub(super) mod classification_result;
+
+#[cfg(feature = "vision")]
 pub(super) mod detection_result;
+#[cfg(feature = "vision")]
 pub(super) mod key_point;
+#[cfg(feature = "vision")]
 pub(super) mod rect;

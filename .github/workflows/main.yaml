@@ -10,6 +10,9 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    container:
+      image: ubuntu:22.04
+      options: --user root
     steps:
       - name: checkout
         uses: actions/checkout@main
@@ -24,4 +27,4 @@ jobs:
         run: ./scripts/download-models.sh
 
       - name: test
-        run: cargo test --release -- --nocapture
+        run: PATH="$HOME/.cargo/bin:$PATH" cargo test --release -- --nocapture

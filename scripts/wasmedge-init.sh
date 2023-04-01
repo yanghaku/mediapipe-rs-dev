@@ -1,12 +1,34 @@
 #!/bin/bash
 
-# Init the Wasmedge environment  (with wasi-nn plugin and tf-lite backend)
+# Init the WasmEdge environment  (with wasi-nn plugin and tf-lite backend)
 
 set -ex
 
 source "$(dirname -- "$0")/env.sh"
 
 export WASMEDGE_VERSION=0.12.0-alpha.2
+
+build_wasmedge_with_nn_tflite() {
+  # install requirements
+  apt update && apt install git software-properties-common libboost-all-dev llvm-14-dev liblld-14-dev cmake ninja-build gcc g++ -y
+
+  REPO_CURL="https://github.com/yanghaku/WasmEdge.git"
+  REPO_BRANCH="fix_wasi_nn_tflite_bugs"
+
+  git clone "${REPO_CURL}"
+  pushd WasmEdge
+  git checkout "${REPO_BRANCH}"
+  mkdir build && pushd build
+  cmake .. -G "Ninja" -DCMAKE_BUILD_TYPE=Release \
+    -DWASMEDGE_PLUGIN_WASI_NN_BACKEND="TensorflowLite" -DCMAKE_INSTALL_PREFIX="${WASMEDGE_PATH}"
+  ninja && ninja install
+
+  # install tflite deps
+  cp "_deps/wasmedgetensorflowdepslite-src/libtensorflowlite_c.so" "${WASMEDGE_LIB_PATH}"/
+
+  popd
+  popd
+}
 
 wasmedge_with_nn_init() {
   curl -sLO https://github.com/WasmEdge/WasmEdge/releases/download/${WASMEDGE_VERSION}/WasmEdge-${WASMEDGE_VERSION}-manylinux2014_x86_64.tar.gz
@@ -45,6 +67,7 @@ wasmedge_lib_env_init() {
   ldconfig
 }
 
-wasmedge_with_nn_init
-wasmedge_tflite_deps_init
+build_wasmedge_with_nn_tflite
+#wasmedge_with_nn_init
+#wasmedge_tflite_deps_init
 # wasmedge_lib_env_init

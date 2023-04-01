@@ -51,3 +51,46 @@ fn object_detection_task_run(model_asset_path: String) {
     let res = session.detect(&img).unwrap();
     eprintln!("{}", res);
 }
+
+#[test]
+fn test_allow_deny_list() {
+    let res = ObjectDetectorBuilder::new()
+        .model_asset_path(MODEL_1.to_string())
+        .cpu()
+        .max_results(1)
+        .category_deny_list(vec!["dog".into()])
+        .finalize()
+        .unwrap()
+        .detect(&image::open(IMG).unwrap())
+        .unwrap();
+    assert_eq!(
+        res.detections[0].categories[0]
+            .category_name
+            .as_ref()
+            .unwrap()
+            .as_str(),
+        "cat"
+    );
+
+    eprintln!("{}", res);
+
+    let res = ObjectDetectorBuilder::new()
+        .model_asset_path(MODEL_1.to_string())
+        .cpu()
+        .max_results(1)
+        .category_allow_list(vec!["dog".into()])
+        .finalize()
+        .unwrap()
+        .detect(&image::open(IMG).unwrap())
+        .unwrap();
+    assert_eq!(
+        res.detections[0].categories[0]
+            .category_name
+            .as_ref()
+            .unwrap()
+            .as_str(),
+        "dog"
+    );
+
+    eprintln!("{}", res);
+}

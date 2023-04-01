@@ -1,16 +1,16 @@
-use super::ImageClassifier;
+use super::AudioClassifier;
 use crate::model::ModelResourceTrait;
 use crate::tasks::common::{BaseTaskBuilder, ClassifierBuilder};
 use crate::Error;
 
-/// Configure the properties of a new image classification task.
+/// Configure the properties of a new Audio classification task.
 /// Methods can be chained on it in order to configure it.
-pub struct ImageClassifierBuilder {
+pub struct AudioClassifierBuilder {
     pub(super) base_task_builder: BaseTaskBuilder,
     pub(super) classifier_builder: ClassifierBuilder,
 }
 
-impl ImageClassifierBuilder {
+impl AudioClassifierBuilder {
     #[inline(always)]
     pub fn new() -> Self {
         Self {
@@ -24,7 +24,7 @@ impl ImageClassifierBuilder {
     classifier_builder_impl!();
 
     #[inline]
-    pub fn finalize(mut self) -> Result<ImageClassifier, Error> {
+    pub fn finalize(mut self) -> Result<AudioClassifier, Error> {
         classifier_builder_check!(self);
         let buf = base_task_builder_check_and_get_buf!(self);
 
@@ -36,7 +36,7 @@ impl ImageClassifierBuilder {
 
         // check model
         model_base_check_impl!(model_resource, 1, 1);
-        let _ = model_resource_check_and_get_impl!(model_resource, image_to_tensor_info, 0);
+        let _ = model_resource_check_and_get_impl!(model_resource, audio_to_tensor_info, 0);
         let input_tensor_type =
             model_resource_check_and_get_impl!(model_resource, input_tensor_type, 0);
 
@@ -46,7 +46,7 @@ impl ImageClassifierBuilder {
         )
         .build_from_shared_slices([buf])?;
 
-        return Ok(ImageClassifier {
+        return Ok(AudioClassifier {
             build_info: self,
             model_resource,
             graph,
@@ -57,17 +57,17 @@ impl ImageClassifierBuilder {
 
 #[cfg(test)]
 mod test {
-    use crate::tasks::vision::ImageClassifierBuilder;
+    use crate::tasks::audio::AudioClassifierBuilder;
 
     #[test]
     fn test_builder_check() {
-        assert!(ImageClassifierBuilder::new().finalize().is_err());
-        assert!(ImageClassifierBuilder::new()
+        assert!(AudioClassifierBuilder::new().finalize().is_err());
+        assert!(AudioClassifierBuilder::new()
             .model_asset_buffer("".into())
             .model_asset_path("".into())
             .finalize()
             .is_err());
-        assert!(ImageClassifierBuilder::new()
+        assert!(AudioClassifierBuilder::new()
             .model_asset_path("".into())
             .max_results(0)
             .finalize()

@@ -118,4 +118,14 @@ macro_rules! model_base_check_impl {
             )));
         }
     }};
+
+    ( $model_resource:ident, $expect_output_count:expr ) => {{
+        let output_tensor_count = $model_resource.output_tensor_count();
+        if output_tensor_count != $expect_output_count {
+            return Err(crate::Error::ModelInconsistentError(format!(
+                "Expect model output tensor count `{}`, but got `{}`",
+                $expect_output_count, output_tensor_count
+            )));
+        }
+    }};
 }
