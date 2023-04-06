@@ -30,7 +30,7 @@ jobs:
         run: ./scripts/ffmpeg-deps-init.sh
 
       - name: test with ffmpeg and default features
-        run: cargo test --release --features="ffmpeg" -- --nocapture
-        env:
-          PATH: "$HOME/.cargo/bin:$PATH"
-          BINDGEN_EXTRA_CLANG_ARGS: "--sysroot=$(realpath $(pwd))/assets/wasi-sysroot --target=wasm32-wasi -fvisibility=default"
+        run: |
+          PATH="$HOME/.cargo/bin:$PATH" \ 
+          BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$(realpath $(pwd))/assets/wasi-sysroot --target=wasm32-wasi -fvisibility=default" \
+          cargo test --release --features="ffmpeg" -- --nocapture
