@@ -35,7 +35,7 @@ impl ObjectDetectorBuilder {
 
         // check model
         model_base_check_impl!(model_resource, 1, 4);
-        let _img_info = model_resource_check_and_get_impl!(model_resource, image_to_tensor_info, 0);
+        model_resource_check_and_get_impl!(model_resource, to_tensor_info, 0).try_to_image()?;
 
         let graph = crate::GraphBuilder::new(
             model_resource.model_backend(),

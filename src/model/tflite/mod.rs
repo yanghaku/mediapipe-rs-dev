@@ -17,7 +17,7 @@ pub(crate) struct TfLiteModelResource<'buf> {
     output_types: Vec<TensorType>,
     output_bytes_size: Vec<usize>,
     output_quantization_parameters: Vec<Option<QuantizationParameters>>,
-    to_tensor_info: Vec<Option<ToTensorInfo<'buf>>>,
+    to_tensor_info: Vec<ToTensorInfo<'buf>>,
     output_name_map: HashMap<&'buf str, usize>,
     associated_files: Option<ZipFiles<'buf>>,
 }
@@ -320,10 +320,9 @@ impl<'buf> TfLiteModelResource<'buf> {
         };
 
         while self.to_tensor_info.len() < i {
-            self.to_tensor_info.push(None);
+            self.to_tensor_info.push(ToTensorInfo::new_none());
         }
-        self.to_tensor_info
-            .push(Some(ToTensorInfo::Image(img_info)));
+        self.to_tensor_info.push(ToTensorInfo::new_image(img_info));
 
         Ok(())
     }
@@ -336,7 +335,7 @@ impl<'buf> TfLiteModelResource<'buf> {
         props: tflite_metadata::AudioProperties<'buf>,
     ) -> Result<(), Error> {
         let input_shape = self.input_shape.get(i).unwrap();
-        let num_channels = props.channels();
+        let num_channels = props.channels() as usize;
         if num_channels == 0 {
             return Err(Error::ModelParseError(format!(
                 "Audio input tensor `{}`, num channel cannot be zero",
@@ -344,26 +343,26 @@ impl<'buf> TfLiteModelResource<'buf> {
             )));
         }
         let input_buffer_size = input_shape.iter().fold(1, |mul, &val| mul * val);
-        if input_buffer_size % num_channels as usize != 0 {
+        if input_buffer_size % num_channels != 0 {
             return Err(Error::ModelParseError(format!(
                 "Input tensor size `{}` should be a multiplier of the number of channels `{}`",
                 input_buffer_size, num_channels
             )));
         }
-        let num_samples = *input_shape.last().unwrap() as u32 / num_channels;
+        let num_samples = *input_shape.last().unwrap() / num_channels;
         let audio_info = AudioToTensorInfo {
             num_channels,
             num_samples,
-            sample_rate: props.sample_rate(),
+            sample_rate: props.sample_rate() as usize,
             num_overlapping_samples: 0,
             tensor_type: self.input_types.get(i).unwrap().clone(),
         };
 
         while self.to_tensor_info.len() < i {
-            self.to_tensor_info.push(None);
+            self.to_tensor_info.push(ToTensorInfo::new_none());
         }
         self.to_tensor_info
-            .push(Some(ToTensorInfo::Audio(audio_info)));
+            .push(ToTensorInfo::new_audio(audio_info));
         Ok(())
     }
 
@@ -396,7 +395,7 @@ impl<'buf> TfLiteModelResource<'buf> {
                         TextToTensorInfo::new_bert_model(max_seq_len, token_index_map)?;
                     self.to_tensor_info.clear();
                     self.to_tensor_info
-                        .push(Some(ToTensorInfo::Text(text_model_input)));
+                        .push(ToTensorInfo::new_text(text_model_input));
                     break;
                 }
             }
@@ -447,7 +446,7 @@ impl<'buf> TfLiteModelResource<'buf> {
                             token_index_map,
                         )?;
                         self.to_tensor_info
-                            .push(Some(ToTensorInfo::Text(text_model_input)));
+                            .push(ToTensorInfo::new_text(text_model_input));
                         break;
                     }
                 }
@@ -675,39 +674,8 @@ impl<'buf> ModelResourceTrait for TfLiteModelResource<'buf> {
         false
     }
 
-    #[cfg(feature = "vision")]
-    fn image_to_tensor_info(&self, input_index: usize) -> Option<&ImageToTensorInfo> {
-        if let Some(t) = self.to_tensor_info.get(input_index) {
-            if let ToTensorInfo::Image(i) = t.as_ref().unwrap() {
-                return Some(i);
-            }
-        }
-        None
-    }
-
-    #[cfg(feature = "audio")]
-    fn audio_to_tensor_info(&self, input_index: usize) -> Option<&AudioToTensorInfo> {
-        if let Some(t) = self.to_tensor_info.get(input_index) {
-            if let ToTensorInfo::Audio(a) = t.as_ref().unwrap() {
-                return Some(a);
-            }
-        }
-        None
-    }
-
-    /// return the text to tensor information and vocab file contents
-    #[cfg(feature = "text")]
-    #[cfg_attr(
-        not(any(feature = "vision", feature = "audio")),
-        allow(irrefutable_let_patterns)
-    )]
-    fn text_to_tensor_info(&self) -> Option<&TextToTensorInfo> {
-        if let Some(t) = self.to_tensor_info.get(0) {
-            if let ToTensorInfo::Text(t) = t.as_ref().unwrap() {
-                return Some(t);
-            }
-        }
-        None
+    fn to_tensor_info(&self, input_index: usize) -> Option<&ToTensorInfo> {
+        self.to_tensor_info.get(input_index)
     }
 }
 

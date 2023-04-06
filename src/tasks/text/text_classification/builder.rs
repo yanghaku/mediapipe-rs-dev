@@ -37,12 +37,7 @@ impl TextClassifierBuilder {
 
         // check model
         model_base_check_impl!(model_resource, 1);
-        let info = model_resource.text_to_tensor_info();
-        if info.is_none() {
-            return Err(Error::ModelInconsistentError(
-                "Model is not for text classification task".into(),
-            ));
-        }
+        model_resource_check_and_get_impl!(model_resource, to_tensor_info, 0).try_to_text()?;
 
         let input_count = model_resource.input_tensor_count();
         if input_count != 1 && input_count != 3 {

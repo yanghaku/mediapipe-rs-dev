@@ -26,5 +26,11 @@ jobs:
       - name: download models for test
         run: ./scripts/download-models.sh
 
-      - name: test
-        run: PATH="$HOME/.cargo/bin:$PATH" cargo test --release -- --nocapture
+      - name: init ffmpeg dependencies
+        run: ./scripts/ffmpeg-deps-init.sh
+
+      - name: test with ffmpeg and default features
+        run: cargo test --release --features="ffmpeg" -- --nocapture
+        env:
+          PATH: "$HOME/.cargo/bin:$PATH"
+          BINDGEN_EXTRA_CLANG_ARGS: "--sysroot=$(realpath $(pwd))/assets/wasi-sysroot --target=wasm32-wasi -fvisibility=default"

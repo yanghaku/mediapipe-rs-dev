@@ -171,7 +171,6 @@ pub mod preprocess;
 pub mod tasks;
 
 pub use error::Error;
-pub use model::ModelResourceTrait;
 pub use wasi_nn_safe::GraphExecutionTarget as Device;
 use wasi_nn_safe::{
     Graph, GraphBuilder, GraphEncoding, GraphExecutionContext, SharedSlice, TensorType,

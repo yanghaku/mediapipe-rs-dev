@@ -4,7 +4,7 @@ pub use builder::TextClassifierBuilder;
 use crate::model::ModelResourceTrait;
 use crate::postprocess::sessions::{CategoriesFilter, ClassificationSession};
 use crate::postprocess::ClassificationResult;
-use crate::preprocess::ToTensor;
+use crate::preprocess::Tensor;
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
 /// Performs classification on text.
@@ -64,7 +64,7 @@ impl TextClassifier {
     }
 
     #[inline(always)]
-    pub fn classify(&self, input: &impl ToTensor) -> Result<ClassificationResult, Error> {
+    pub fn classify(&self, input: &impl Tensor) -> Result<ClassificationResult, Error> {
         self.new_session()?.classify(input)
     }
 }
@@ -90,17 +90,15 @@ pub struct TextClassifierSession<'a> {
 }
 
 impl<'a> TextClassifierSession<'a> {
-    pub fn classify(&mut self, input: &impl ToTensor) -> Result<ClassificationResult, Error> {
+    pub fn classify(&mut self, input: &impl Tensor) -> Result<ClassificationResult, Error> {
+        let to_tensor_info =
+            model_resource_check_and_get_impl!(self.classifier.model_resource, to_tensor_info, 0);
         let mut input_buffers: Vec<&mut [u8]> = self
             .input_tensor_bufs
             .iter_mut()
             .map(|v| v.as_mut_slice())
             .collect();
-        input.to_tensors(
-            0,
-            &self.classifier.model_resource,
-            input_buffers.as_mut_slice(),
-        )?;
+        input.to_tensors(to_tensor_info, input_buffers.as_mut_slice())?;
 
         for index in 0..self.input_tensor_bufs.len() {
             self.execution_ctx.set_input(

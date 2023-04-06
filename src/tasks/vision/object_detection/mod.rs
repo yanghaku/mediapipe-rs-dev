@@ -3,8 +3,9 @@ pub use builder::ObjectDetectorBuilder;
 
 use crate::model::ModelResourceTrait;
 use crate::postprocess::sessions::{CategoriesFilter, DetectionSession};
-use crate::postprocess::DetectionResult;
-use crate::preprocess::ToTensor;
+use crate::postprocess::{DetectionResult, ResultsIter};
+use crate::preprocess::{InToTensorsIterator, Tensor, TensorsIterator};
+use crate::tasks::TaskSession;
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
 /// Performs object detection on single images, video frames, or live stream.
@@ -74,9 +75,36 @@ impl ObjectDetector {
         })
     }
 
+    /// Detect one image.
     #[inline(always)]
-    pub fn detect(&self, input: &impl ToTensor) -> Result<DetectionResult, Error> {
+    pub fn detect(&self, input: &impl Tensor) -> Result<DetectionResult, Error> {
         self.new_session()?.detect(input)
+    }
+
+    /// Detect input video stream, and collect all results to [`Vec`]
+    #[inline(always)]
+    pub fn detect_video<'a>(
+        &'a self,
+        input_stream: impl InToTensorsIterator<'a>,
+    ) -> Result<Vec<DetectionResult>, Error> {
+        let iter = self.detection_results_iter(input_stream)?;
+        let mut session = self.new_session()?;
+        iter.to_vec(&mut session)
+    }
+
+    /// Return a iterator for results, process input stream when poll next result.
+    #[inline(always)]
+    pub fn detection_results_iter<'a, T>(
+        &'a self,
+        input_stream: T,
+    ) -> Result<ResultsIter<ObjectDetectorSession<'_>, T::Iter>, Error>
+    where
+        T: InToTensorsIterator<'a>,
+    {
+        let to_tensor_info =
+            model_resource_check_and_get_impl!(self.model_resource, to_tensor_info, 0);
+        let input_tensors_iter = input_stream.into_tensors_iter(to_tensor_info)?;
+        Ok(ResultsIter::new(input_tensors_iter))
     }
 }
 
@@ -102,13 +130,10 @@ pub struct ObjectDetectorSession<'a> {
 }
 
 impl<'a> ObjectDetectorSession<'a> {
-    pub fn detect(&mut self, input: &impl ToTensor) -> Result<DetectionResult, Error> {
-        input.to_tensors(
-            0,
-            &self.detector.model_resource,
-            &mut [&mut self.input_buffer],
-        )?;
-
+    // todo: usage the timestamp
+    #[allow(unused)]
+    #[inline(always)]
+    fn compute(&mut self, timestamp_ms: Option<u64>) -> Result<DetectionResult, Error> {
         self.execution_ctx.set_input(
             0,
             self.detector.input_tensor_type,
@@ -148,5 +173,42 @@ impl<'a> ObjectDetectorSession<'a> {
 
         // generate result
         Ok(self.detection_session.result(num_box, 0))
+    }
+
+    /// Detect one image
+    #[inline(always)]
+    pub fn detect(&mut self, input: &impl Tensor) -> Result<DetectionResult, Error> {
+        let to_tensor_info =
+            model_resource_check_and_get_impl!(self.detector.model_resource, to_tensor_info, 0);
+        input.to_tensors(to_tensor_info, &mut [&mut self.input_buffer])?;
+        self.compute(None)
+    }
+
+    /// Detect input video stream use this session, and collect all results to [`Vec`]
+    #[inline(always)]
+    pub fn detect_video(
+        &'a mut self,
+        input_stream: impl InToTensorsIterator<'a>,
+    ) -> Result<Vec<DetectionResult>, Error> {
+        self.detector
+            .detection_results_iter(input_stream)?
+            .to_vec(self)
+    }
+}
+
+impl<'a> TaskSession for ObjectDetectorSession<'a> {
+    type Result = DetectionResult;
+
+    #[inline]
+    fn process_next<TensorsIter: TensorsIterator>(
+        &mut self,
+        input_tensors_iter: &mut TensorsIter,
+    ) -> Result<Option<Self::Result>, Error> {
+        if let Some(timestamp_ms) =
+            input_tensors_iter.next_tensors(&mut [&mut self.input_buffer])?
+        {
+            return Ok(Some(self.compute(Some(timestamp_ms))?));
+        }
+        Ok(None)
     }
 }

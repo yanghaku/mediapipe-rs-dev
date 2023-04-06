@@ -12,9 +12,6 @@ pub enum Error {
     #[error("Argument Error: {0}")]
     ArgumentError(String),
 
-    #[error("FlatBuffer Error: {0}")]
-    FlatBufferError(#[from] flatbuffers::InvalidFlatbuffer),
-
     #[error("Model Binary Parse Error: {0}")]
     ModelParseError(String),
 
@@ -23,4 +20,15 @@ pub enum Error {
 
     #[error("Model Inconsistent Error: {0}")]
     ModelInconsistentError(String),
+
+    #[error("FlatBuffer Error: {0}")]
+    FlatBufferError(#[from] flatbuffers::InvalidFlatbuffer),
+
+    #[cfg(feature = "ffmpeg")]
+    #[error("FFMpeg Error: {0}")]
+    FFMpegError(#[from] ffmpeg_next::Error),
+
+    #[cfg(feature = "audio")]
+    #[error("Symphonia Error: {0}")]
+    SymphoniaError(#[from] symphonia_core::errors::Error),
 }

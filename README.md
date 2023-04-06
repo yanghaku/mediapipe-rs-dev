@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-Example input: ![](./assets/testdata/img/bird.jpg)
+Example input: <img height="30%" src="./assets/testdata/img/bird.jpg" width="30%"/>
 
 Example output in console:
 
@@ -118,7 +118,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 Example input:
-![](./assets/testdata/img/cat_and_dog.jpg)
+<img height="30%" src="./assets/testdata/img/cat_and_dog.jpg" width="30%"/>
 
 Example output in console:
 
@@ -144,7 +144,7 @@ DetectionResult:
 ```
 
 Example output:
-![](./assets/doc/cat_and_dog_detection.jpg)
+<img height="30%" src="./assets/doc/cat_and_dog_detection.jpg" width="30%"/>
 
 ### Text Classification
 
