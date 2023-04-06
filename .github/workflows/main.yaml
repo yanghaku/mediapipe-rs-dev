@@ -30,6 +30,7 @@ jobs:
         run: ./scripts/ffmpeg-deps-init.sh
 
       - name: test with ffmpeg and default features
+        shell: bash
         run: |
           PATH="$HOME/.cargo/bin:$PATH" \ 
           BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$(realpath $(pwd))/assets/wasi-sysroot --target=wasm32-wasi -fvisibility=default" \
