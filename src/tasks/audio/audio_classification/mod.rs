@@ -3,8 +3,9 @@ pub use builder::AudioClassifierBuilder;
 
 use crate::model::ModelResourceTrait;
 use crate::postprocess::sessions::{CategoriesFilter, ClassificationSession};
-use crate::postprocess::ClassificationResult;
-use crate::preprocess::{ToTensorStream, ToTensorStreamIterator};
+use crate::postprocess::{ClassificationResult, ResultsIter};
+use crate::preprocess::{InToTensorsIterator, TensorsIterator};
+use crate::tasks::TaskSession;
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
 /// Performs classification on audio.
@@ -60,24 +61,34 @@ impl AudioClassifier {
         })
     }
 
+    /// Classify audio stream, and collect all results to [`Vec`]
     #[inline(always)]
     pub fn classify<'a>(
         &'a self,
-        input: &'a impl ToTensorStream<'a>,
+        input_stream: impl InToTensorsIterator<'a>,
     ) -> Result<Vec<ClassificationResult>, Error> {
-        self.new_session()?.classify(input)
+        let iter = self.classify_results_iter(input_stream)?;
+        let mut session = self.new_session()?;
+        iter.to_vec(&mut session)
+    }
+
+    /// Return a iterator for results, process input stream when poll next result.
+    #[inline(always)]
+    pub fn classify_results_iter<'a, T>(
+        &'a self,
+        input_stream: T,
+    ) -> Result<ResultsIter<AudioClassifierSession<'_>, T::Iter>, Error>
+    where
+        T: InToTensorsIterator<'a>,
+    {
+        let to_tensor_info =
+            model_resource_check_and_get_impl!(self.model_resource, to_tensor_info, 0);
+        let input_tensors_iter = input_stream.into_tensors_iter(to_tensor_info)?;
+        Ok(ResultsIter::new(input_tensors_iter))
     }
 }
 
-/// Session to run inference. If process multiple audios, use it can get better performance.
-///
-/// ```rust
-/// use mediapipe_rs::tasks::audio::AudioClassifier;
-///
-/// let audio_classifier: AudioClassifier;
-/// let mut session = audio_classifier.new_session()?;
-/// session.classify(audio)?;
-/// ```
+/// Session to run inference.
 pub struct AudioClassifierSession<'a> {
     classifier: &'a AudioClassifier,
     execution_ctx: GraphExecutionContext<'a>,
@@ -89,14 +100,29 @@ pub struct AudioClassifierSession<'a> {
 }
 
 impl<'a> AudioClassifierSession<'a> {
+    /// Classify audio stream use this session, and collect all results to [`Vec`]
+    #[inline(always)]
     pub fn classify(
-        &mut self,
-        input: &'a impl ToTensorStream<'a>,
+        &'a mut self,
+        input_stream: impl InToTensorsIterator<'a>,
     ) -> Result<Vec<ClassificationResult>, Error> {
-        let mut results = Vec::new();
-        let model_resource = &self.classifier.model_resource;
-        let mut tensors = input.to_tensors_stream(0, model_resource)?;
-        while let Some(timestamp_ms) = tensors.next_tensors(&mut [&mut self.input_buffer]) {
+        self.classifier
+            .classify_results_iter(input_stream)?
+            .to_vec(self)
+    }
+}
+
+impl<'a> TaskSession for AudioClassifierSession<'a> {
+    type Result = ClassificationResult;
+
+    #[inline]
+    fn process_next<TensorsIter: TensorsIterator>(
+        &mut self,
+        input_tensors_iter: &mut TensorsIter,
+    ) -> Result<Option<Self::Result>, Error> {
+        if let Some(timestamp_ms) =
+            input_tensors_iter.next_tensors(&mut [&mut self.input_buffer])?
+        {
             self.execution_ctx.set_input(
                 0,
                 self.classifier.input_tensor_type,
@@ -115,9 +141,8 @@ impl<'a> AudioClassifierSession<'a> {
                 )));
             }
 
-            results.push(self.classification_session.result(Some(timestamp_ms)))
+            return Ok(Some(self.classification_session.result(Some(timestamp_ms))));
         }
-
-        Ok(results)
+        Ok(None)
     }
 }

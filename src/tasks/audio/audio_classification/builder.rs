@@ -36,7 +36,7 @@ impl AudioClassifierBuilder {
 
         // check model
         model_base_check_impl!(model_resource, 1, 1);
-        let _ = model_resource_check_and_get_impl!(model_resource, audio_to_tensor_info, 0);
+        model_resource_check_and_get_impl!(model_resource, to_tensor_info, 0).try_to_audio()?;
         let input_tensor_type =
             model_resource_check_and_get_impl!(model_resource, input_tensor_type, 0);
 
@@ -64,11 +64,11 @@ mod test {
         assert!(AudioClassifierBuilder::new().finalize().is_err());
         assert!(AudioClassifierBuilder::new()
             .model_asset_buffer("".into())
-            .model_asset_path("".into())
+            .model_asset_path("")
             .finalize()
             .is_err());
         assert!(AudioClassifierBuilder::new()
-            .model_asset_path("".into())
+            .model_asset_path("")
             .max_results(0)
             .finalize()
             .is_err());

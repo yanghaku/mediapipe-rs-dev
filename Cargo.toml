@@ -7,6 +7,7 @@ categories = ["Webassembly"]
 keywords = ["Webassembly", "wasm", "neural-network", "inference"]
 license-file = "LICENSE"
 readme = "README.md"
+build = "src/build.rs"
 documentation = "https://docs.rs/mediapipe-rs"
 repository = "https://github.com/yanghaku/mediapipe-rs"
 description = "A Rust library for mediapipe tasks"
@@ -31,17 +32,24 @@ flatbuffers = "23"
 image = { version = "^0.24", default-features = false, optional = true }
 regex = { version = "1", optional = true }
 lazy_static = { version = "1", optional = true }
+symphonia-core = { version = "0.5", optional = true }
+ffmpeg-next = { version = "6.0", features = ["static", "image"], optional = true }
 
 
 [features]
 # default is all task types
 default = ["audio", "vision", "text"]
 
-audio = []
+audio = ["symphonia-core"]
 vision = ["image"]
 text = ["regex", "lazy_static"]
+ffmpeg = ["ffmpeg-next", "vision", "audio"]
 
 
 [dev-dependencies]
 image = { version = "^0.24", default-features = false, features = ["jpeg"] }
 symphonia = { version = "0.5", default-features = false, features = ["wav", "pcm"] }
+
+
+[patch."crates-io"]
+ffmpeg-next = { git = "https://github.com/yanghaku/rust-ffmpeg.git", branch = "wasm32-wasi" }

@@ -3,8 +3,9 @@ pub use builder::ImageClassifierBuilder;
 
 use crate::model::ModelResourceTrait;
 use crate::postprocess::sessions::{CategoriesFilter, ClassificationSession};
-use crate::postprocess::ClassificationResult;
-use crate::preprocess::ToTensor;
+use crate::postprocess::{ClassificationResult, ResultsIter};
+use crate::preprocess::{InToTensorsIterator, Tensor, TensorsIterator};
+use crate::tasks::TaskSession;
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
 /// Performs classification on images.
@@ -60,9 +61,36 @@ impl ImageClassifier {
         })
     }
 
+    /// Classify one image.
     #[inline(always)]
-    pub fn classify(&self, input: &impl ToTensor) -> Result<ClassificationResult, Error> {
+    pub fn classify(&self, input: &impl Tensor) -> Result<ClassificationResult, Error> {
         self.new_session()?.classify(input)
+    }
+
+    /// Classify input video stream, and collect all results to [`Vec`]
+    #[inline(always)]
+    pub fn classify_video<'a>(
+        &'a self,
+        input_stream: impl InToTensorsIterator<'a>,
+    ) -> Result<Vec<ClassificationResult>, Error> {
+        let iter = self.classify_results_iter(input_stream)?;
+        let mut session = self.new_session()?;
+        iter.to_vec(&mut session)
+    }
+
+    /// Return a iterator for results, process input stream when poll next result.
+    #[inline(always)]
+    pub fn classify_results_iter<'a, T>(
+        &'a self,
+        input_stream: T,
+    ) -> Result<ResultsIter<ImageClassifierSession<'_>, T::Iter>, Error>
+    where
+        T: InToTensorsIterator<'a>,
+    {
+        let to_tensor_info =
+            model_resource_check_and_get_impl!(self.model_resource, to_tensor_info, 0);
+        let input_tensors_iter = input_stream.into_tensors_iter(to_tensor_info)?;
+        Ok(ResultsIter::new(input_tensors_iter))
     }
 }
 
@@ -88,19 +116,15 @@ pub struct ImageClassifierSession<'a> {
 }
 
 impl<'a> ImageClassifierSession<'a> {
-    pub fn classify(&mut self, input: &impl ToTensor) -> Result<ClassificationResult, Error> {
-        input.to_tensors(
-            0,
-            &self.classifier.model_resource,
-            &mut [&mut self.input_tensor_buf],
-        )?;
-
+    #[inline(always)]
+    fn compute(&mut self, timestamp_ms: Option<u64>) -> Result<ClassificationResult, Error> {
         self.execution_ctx.set_input(
             0,
             self.classifier.input_tensor_type,
             self.input_tensor_shape,
             self.input_tensor_buf.as_ref(),
         )?;
+
         self.execution_ctx.compute()?;
 
         let output_buffer = self.classification_session.output_buffer(0);
@@ -113,6 +137,43 @@ impl<'a> ImageClassifierSession<'a> {
             )));
         }
 
-        Ok(self.classification_session.result(None))
+        Ok(self.classification_session.result(timestamp_ms))
+    }
+
+    /// Classify one image, reuse this session data to speedup.
+    #[inline(always)]
+    pub fn classify(&mut self, input: &impl Tensor) -> Result<ClassificationResult, Error> {
+        let to_tensor_info =
+            model_resource_check_and_get_impl!(self.classifier.model_resource, to_tensor_info, 0);
+        input.to_tensors(to_tensor_info, &mut [&mut self.input_tensor_buf])?;
+        self.compute(None)
+    }
+
+    /// Classify input video stream use this session, and collect all results to [`Vec`]
+    #[inline(always)]
+    pub fn classify_video(
+        &'a mut self,
+        input_stream: impl InToTensorsIterator<'a>,
+    ) -> Result<Vec<ClassificationResult>, Error> {
+        self.classifier
+            .classify_results_iter(input_stream)?
+            .to_vec(self)
+    }
+}
+
+impl<'a> TaskSession for ImageClassifierSession<'a> {
+    type Result = ClassificationResult;
+
+    #[inline]
+    fn process_next<TensorsIter: TensorsIterator>(
+        &mut self,
+        input_tensors_iter: &mut TensorsIter,
+    ) -> Result<Option<Self::Result>, Error> {
+        if let Some(timestamp_ms) =
+            input_tensors_iter.next_tensors(&mut [&mut self.input_tensor_buf])?
+        {
+            return Ok(Some(self.compute(Some(timestamp_ms))?));
+        }
+        Ok(None)
     }
 }

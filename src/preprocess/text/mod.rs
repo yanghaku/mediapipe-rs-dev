@@ -104,86 +104,77 @@ impl<'buf> TextToTensorInfo<'buf> {
     }
 }
 
-impl ToTensor for &str {
+impl Tensor for &str {
     fn to_tensors(
         &self,
-        _input_index: usize,
-        model_resource: &Box<dyn ModelResourceTrait>,
+        to_tensor_info: &ToTensorInfo,
         output_buffers: &mut [impl AsMut<[u8]>],
     ) -> Result<(), Error> {
-        if let Some(info) = model_resource.text_to_tensor_info() {
-            match info {
-                TextToTensorInfo::BertModel {
-                    max_seq_len,
+        match to_tensor_info.try_to_text()? {
+            TextToTensorInfo::BertModel {
+                max_seq_len,
+                token_index_map,
+                classifier_token_id,
+                separator_token_id,
+                ..
+            } => {
+                debug_assert_eq!(output_buffers.len(), 3);
+                return bert_tensor::to_bert_tensors(
+                    self,
                     token_index_map,
-                    classifier_token_id,
-                    separator_token_id,
-                    ..
-                } => {
-                    debug_assert_eq!(output_buffers.len(), 3);
-                    return bert_tensor::to_bert_tensors(
-                        self,
-                        token_index_map,
-                        output_buffers,
-                        *max_seq_len,
-                        *classifier_token_id,
-                        *separator_token_id,
-                    );
-                }
-                TextToTensorInfo::RegexModel {
+                    output_buffers,
+                    *max_seq_len,
+                    *classifier_token_id,
+                    *separator_token_id,
+                );
+            }
+            TextToTensorInfo::RegexModel {
+                delim_regex,
+                token_index_map,
+                max_seq_len,
+                unknown_id,
+                pad_id,
+                ..
+            } => {
+                debug_assert_eq!(output_buffers.len(), 1);
+                return regex_to_tensor::regex_to_tensors(
+                    self,
                     delim_regex,
                     token_index_map,
-                    max_seq_len,
-                    unknown_id,
-                    pad_id,
-                    ..
-                } => {
-                    debug_assert_eq!(output_buffers.len(), 1);
-                    return regex_to_tensor::regex_to_tensors(
-                        self,
-                        delim_regex,
-                        token_index_map,
-                        &mut output_buffers[0],
-                        *max_seq_len,
-                        *unknown_id,
-                        *pad_id,
-                    );
-                }
-                TextToTensorInfo::StringModel | TextToTensorInfo::UseModel => {
-                    todo!("Text String model")
-                }
+                    &mut output_buffers[0],
+                    *max_seq_len,
+                    *unknown_id,
+                    *pad_id,
+                );
+            }
+            TextToTensorInfo::StringModel | TextToTensorInfo::UseModel => {
+                todo!("Text String model")
             }
         }
-        Err(Error::ModelInconsistentError(format!(
-            "Cannot get model text to tensor information."
-        )))
     }
 }
 
-impl ToTensor for String {
+impl Tensor for String {
     #[inline(always)]
     fn to_tensors(
         &self,
-        input_index: usize,
-        model_resource: &Box<dyn ModelResourceTrait>,
+        to_tensor_info: &ToTensorInfo,
         output_buffers: &mut [impl AsMut<[u8]>],
     ) -> Result<(), Error> {
-        self.as_str()
-            .to_tensors(input_index, model_resource, output_buffers)
+        self.as_str().to_tensors(to_tensor_info, output_buffers)
     }
 }
 
-impl<'a> ToTensor for Cow<'a, str> {
+impl<'a> Tensor for Cow<'a, str> {
     #[inline(always)]
     fn to_tensors(
         &self,
-        input_index: usize,
-        model_resource: &Box<dyn ModelResourceTrait>,
+        to_tensor_info: &ToTensorInfo,
         output_buffers: &mut [impl AsMut<[u8]>],
     ) -> Result<(), Error> {
         match self {
-            Cow::Borrowed(s) => (*s).to_tensors(input_index, model_resource, output_buffers),
-            Cow::Owned(s) => s.to_tensors(input_index, model_resource, output_buffers),
+            Cow::Borrowed(s) => (*s).to_tensors(to_tensor_info, output_buffers),
+            Cow::Owned(s) => s.to_tensors(to_tensor_info, output_buffers),
         }
     }
 }

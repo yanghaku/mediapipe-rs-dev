@@ -7,19 +7,15 @@ const TEXT_1: &'static str = "an imperfect but overall entertaining mystery";
 
 #[test]
 fn test_model_1() {
-    text_classification_task_run(MODEL_1.into(), "1", "0");
+    text_classification_task_run(MODEL_1, "1", "0");
 }
 
 #[test]
 fn test_model_2() {
-    text_classification_task_run(MODEL_2.into(), "positive", "negative")
+    text_classification_task_run(MODEL_2, "positive", "negative")
 }
 
-fn text_classification_task_run(
-    model_asset_path: String,
-    positive_name: &str,
-    negative_name: &str,
-) {
+fn text_classification_task_run(model_asset_path: &str, positive_name: &str, negative_name: &str) {
     let classification_result = TextClassifierBuilder::new()
         .model_asset_path(model_asset_path)
         .finalize()
@@ -38,7 +34,7 @@ fn text_classification_task_run(
 #[test]
 fn test_bert() {
     let classifier = TextClassifierBuilder::new()
-        .model_asset_path(MODEL_2.into())
+        .model_asset_path(MODEL_2)
         .max_results(1)
         .finalize()
         .unwrap();

@@ -3,7 +3,7 @@ pub(crate) struct BaseTaskBuilder {
     pub model_asset_buffer: Option<crate::SharedSlice<u8>>,
 
     /// The path to the model asset.
-    pub model_asset_path: Option<String>,
+    pub model_asset_path: Option<std::path::PathBuf>,
 
     /// The device to run the models.
     pub execution_target: crate::Device,
@@ -35,8 +35,8 @@ macro_rules! base_builder_impl {
         }
 
         #[inline(always)]
-        pub fn model_asset_path(mut self, model_asset_path: String) -> Self {
-            self.base_task_builder.model_asset_path = Some(model_asset_path);
+        pub fn model_asset_path(mut self, model_asset_path: impl Into<std::path::PathBuf>) -> Self {
+            self.base_task_builder.model_asset_path = Some(model_asset_path.into());
             self
         }
 

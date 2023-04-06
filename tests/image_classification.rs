@@ -8,25 +8,25 @@ const IMG: &'static str = "assets/testdata/img/banana.jpg";
 
 #[test]
 fn test_image_classification_model_1() {
-    image_classification_task_run(MODEL_1.to_string());
+    image_classification_task_run(MODEL_1);
 }
 
 #[test]
 fn test_image_classification_model_2() {
-    image_classification_task_run(MODEL_2.to_string());
+    image_classification_task_run(MODEL_2);
 }
 
 #[test]
 fn test_image_classification_model_3() {
-    image_classification_task_run(MODEL_3.to_string());
+    image_classification_task_run(MODEL_3);
 }
 
 #[test]
 fn test_image_classification_model_4() {
-    image_classification_task_run(MODEL_4.to_string());
+    image_classification_task_run(MODEL_4);
 }
 
-fn image_classification_task_run(model_asset_path: String) {
+fn image_classification_task_run(model_asset_path: &str) {
     let image_classifier = ImageClassifierBuilder::new()
         .model_asset_path(model_asset_path)
         .cpu()
@@ -57,7 +57,7 @@ fn test_bird_from_tf_hub() {
     const IMAGE: &'static str = "assets/testdata/img/bird.jpg";
 
     let res = ImageClassifierBuilder::new()
-        .model_asset_path(MODEL.to_string())
+        .model_asset_path(MODEL)
         .max_results(2)
         .finalize()
         .unwrap()

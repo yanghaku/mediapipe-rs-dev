@@ -15,7 +15,7 @@ use crate::preprocess::vision::{ImageColorSpaceType, ImageDataLayout, ImageToTen
 /// Abstraction for model resources.
 /// Users can use this trait to get information for models, such as data layout, model backend, etc.
 /// Now it supports ```TensorFlowLite``` backend.
-pub trait ModelResourceTrait {
+pub(crate) trait ModelResourceTrait {
     fn model_backend(&self) -> GraphEncoding;
 
     fn input_tensor_count(&self) -> usize;
@@ -46,15 +46,7 @@ pub trait ModelResourceTrait {
     #[cfg(feature = "vision")]
     fn output_bounding_box_properties(&self, index: usize, slice: &mut [usize]) -> bool;
 
-    #[cfg(feature = "vision")]
-    fn image_to_tensor_info(&self, input_index: usize) -> Option<&ImageToTensorInfo>;
-
-    #[cfg(feature = "audio")]
-    fn audio_to_tensor_info(&self, input_index: usize) -> Option<&AudioToTensorInfo>;
-
-    /// return the text to tensor information and vocab file contents
-    #[cfg(feature = "text")]
-    fn text_to_tensor_info(&self) -> Option<&TextToTensorInfo>;
+    fn to_tensor_info(&self, input_index: usize) -> Option<&ToTensorInfo>;
 }
 
 #[inline]

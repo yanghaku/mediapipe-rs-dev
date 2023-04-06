@@ -26,5 +26,8 @@ jobs:
       - name: download models for test
         run: ./scripts/download-models.sh
 
-      - name: test
-        run: PATH="$HOME/.cargo/bin:$PATH" cargo test --release -- --nocapture
+      - name: init ffmpeg dependencies
+        run: ./scripts/ffmpeg-deps-init.sh
+
+      - name: test with ffmpeg and default features
+        run: ./scripts/cargo-test.sh

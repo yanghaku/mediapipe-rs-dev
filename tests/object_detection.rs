@@ -10,35 +10,35 @@ const IMG: &'static str = "assets/testdata/img/cat_and_dog.jpg";
 
 #[test]
 fn test_object_detection_model_1() {
-    object_detection_task_run(MODEL_1.to_string());
+    object_detection_task_run(MODEL_1);
 }
 
 #[test]
 fn test_object_detection_model_2() {
-    object_detection_task_run(MODEL_2.to_string());
+    object_detection_task_run(MODEL_2);
 }
 
 #[test]
 fn test_object_detection_model_3() {
-    object_detection_task_run(MODEL_3.to_string());
+    object_detection_task_run(MODEL_3);
 }
 
 #[test]
 fn test_object_detection_model_4() {
-    object_detection_task_run(MODEL_4.to_string());
+    object_detection_task_run(MODEL_4);
 }
 
 #[test]
 fn test_object_detection_model_5() {
-    object_detection_task_run(MODEL_5.to_string());
+    object_detection_task_run(MODEL_5);
 }
 
 #[test]
 fn test_object_detection_model_6() {
-    object_detection_task_run(MODEL_6.to_string());
+    object_detection_task_run(MODEL_6);
 }
 
-fn object_detection_task_run(model_asset_path: String) {
+fn object_detection_task_run(model_asset_path: &str) {
     let object_detector = ObjectDetectorBuilder::new()
         .model_asset_path(model_asset_path)
         .cpu()
@@ -55,7 +55,7 @@ fn object_detection_task_run(model_asset_path: String) {
 #[test]
 fn test_allow_deny_list() {
     let res = ObjectDetectorBuilder::new()
-        .model_asset_path(MODEL_1.to_string())
+        .model_asset_path(MODEL_1)
         .cpu()
         .max_results(1)
         .category_deny_list(vec!["dog".into()])
@@ -75,7 +75,7 @@ fn test_allow_deny_list() {
     eprintln!("{}", res);
 
     let res = ObjectDetectorBuilder::new()
-        .model_asset_path(MODEL_1.to_string())
+        .model_asset_path(MODEL_1)
         .cpu()
         .max_results(1)
         .category_allow_list(vec!["dog".into()])
