@@ -9,7 +9,7 @@ WASI_SDK_VERSION="wasi-sdk-19"
 LIB_CLANG_RT_FILENAME="libclang_rt.builtins-wasm32-wasi-19.0.tar.gz"
 WASI_SYSROOT_FILENAME="wasi-sysroot-19.0.tar.gz"
 
-OUTPUT_ROOT="$(dirname -- "$0")/../assets"
+OUTPUT_ROOT="$(realpath "$(dirname -- "$0")")/../assets"
 TEMP_DIR="/tmp"
 
 download_ffmpeg_lib() {

@@ -4,9 +4,9 @@ set -ex
 
 source "$HOME/.cargo/env"
 
-CURRENT="$(dirname -- "$0")"
-SYSROOT="${CURRENT}/../assets/wasi-sysroot"
-export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=${SYSROOT} --target=wasm32-wasi -fvisibility=default"
+CURRENT="$(realpath "$(dirname -- "$0")")"
+WASI_SYSROOT="${CURRENT}/../assets/wasi-sysroot"
+export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=${WASI_SYSROOT} --target=wasm32-wasi -fvisibility=default"
 
 # default features (audio,text,vision)
 cargo test --release -- --nocapture
