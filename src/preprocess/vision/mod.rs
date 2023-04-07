@@ -1,5 +1,10 @@
 mod image;
 
+#[cfg(feature = "ffmpeg")]
+mod ffmpeg;
+#[cfg(feature = "ffmpeg")]
+pub use ffmpeg::FFMpegVideoData;
+
 use super::*;
 use crate::TensorType;
 

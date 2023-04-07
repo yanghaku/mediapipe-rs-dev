@@ -69,7 +69,7 @@ impl ImageClassifier {
 
     /// Classify input video stream, and collect all results to [`Vec`]
     #[inline(always)]
-    pub fn classify_video<'a>(
+    pub fn classify_for_video<'a>(
         &'a self,
         input_stream: impl InToTensorsIterator<'a>,
     ) -> Result<Vec<ClassificationResult>, Error> {
@@ -151,7 +151,7 @@ impl<'a> ImageClassifierSession<'a> {
 
     /// Classify input video stream use this session, and collect all results to [`Vec`]
     #[inline(always)]
-    pub fn classify_video(
+    pub fn classify_for_video(
         &'a mut self,
         input_stream: impl InToTensorsIterator<'a>,
     ) -> Result<Vec<ClassificationResult>, Error> {

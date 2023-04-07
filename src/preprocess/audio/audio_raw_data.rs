@@ -111,7 +111,7 @@ where
     T: AsRef<[E]> + 'a,
     E: AsRef<[f32]>,
 {
-    fn next_package(
+    fn next_frame(
         &mut self,
         sample_buffer: &mut Vec<Vec<f32>>,
     ) -> Result<Option<(usize, usize)>, Error> {

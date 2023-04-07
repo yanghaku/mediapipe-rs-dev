@@ -13,7 +13,7 @@ impl<'a, Source: AudioData> TensorsIterator for AudioDataToTensorIter<'a, Source
             || self.process_buffer[0].len() < self.audio_to_tensor_info.num_samples
         {
             if let Some((sample_rate, num_samples)) =
-                self.source.next_package(&mut self.input_buffer)?
+                self.source.next_frame(&mut self.input_buffer)?
             {
                 self.input_sample_rate = sample_rate;
                 let num_samples = self.preprocess_input_buffer(sample_rate, num_samples)?;

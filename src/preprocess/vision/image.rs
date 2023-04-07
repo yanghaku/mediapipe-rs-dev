@@ -1,7 +1,7 @@
 extern crate image as image_crate;
 
 use super::*;
-use image_crate::{imageops, DynamicImage, EncodableLayout, RgbImage};
+pub(super) use image_crate::{imageops, DynamicImage, EncodableLayout, ImageBuffer, Rgb, RgbImage};
 
 const IMAGE_RESIZE_FILTER: imageops::FilterType = imageops::FilterType::Gaussian;
 
@@ -41,9 +41,9 @@ impl Tensor for DynamicImage {
                 // we treat unknown as rgb8
                 ImageColorSpaceType::RGB | ImageColorSpaceType::UNKNOWN => {
                     if let Some(rgb) = self.as_rgb8() {
-                        rgb8_image_to_tensor(rgb, info, &mut output_buffers[0])
+                        rgb8_image_buffer_to_tensor(rgb, info, &mut output_buffers[0])
                     } else {
-                        rgb8_image_to_tensor(&self.to_rgb8(), info, &mut output_buffers[0])
+                        rgb8_image_buffer_to_tensor(&self.to_rgb8(), info, &mut output_buffers[0])
                     }
                 }
             }
@@ -73,7 +73,7 @@ impl Tensor for RgbImage {
             return dynamic_image_into_tensor(dynamic_img, info, &mut output_buffers[0]);
         }
 
-        rgb8_image_to_tensor(self, info, &mut output_buffers[0])
+        rgb8_image_buffer_to_tensor(self, info, &mut output_buffers[0])
     }
 }
 
@@ -90,17 +90,20 @@ fn dynamic_image_into_tensor(
         }
         // treat unknown as rgb8
         ImageColorSpaceType::RGB | ImageColorSpaceType::UNKNOWN => {
-            rgb8_image_to_tensor(&img.into_rgb8(), info, output_buffer)
+            rgb8_image_buffer_to_tensor(&img.into_rgb8(), info, output_buffer)
         }
     }
 }
 
 #[inline(always)]
-fn rgb8_image_to_tensor<'t>(
-    img: &'t RgbImage,
+pub(super) fn rgb8_image_buffer_to_tensor<'t, Container>(
+    img: &'t ImageBuffer<Rgb<u8>, Container>,
     info: &ImageToTensorInfo,
     output_buffer: &mut impl AsMut<[u8]>,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+    Container: std::ops::Deref<Target = [u8]>,
+{
     debug_assert!(
         img.width() == info.width
             && img.height() == info.height

@@ -1,3 +1,5 @@
+mod common;
+
 #[cfg(feature = "audio")]
 pub mod audio;
 

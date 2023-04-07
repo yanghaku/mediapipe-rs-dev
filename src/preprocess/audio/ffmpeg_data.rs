@@ -1,37 +1,7 @@
 use super::*;
+use common::ffmpeg_input::FFMpegInput;
 
-pub struct FFMpegAudioData {
-    input: ffmpeg_next::format::context::Input,
-    decoder: ffmpeg_next::decoder::Audio,
-    frame: ffmpeg_next::frame::Audio,
-    audio_stream_index: usize,
-}
-
-macro_rules! get_audio_stream {
-    ( $input:expr ) => {
-        $input
-            .streams()
-            .best(ffmpeg_next::media::Type::Audio)
-            .ok_or(Error::ArgumentError("Input Has no audio stream.".into()))?
-    };
-}
-
-impl FFMpegAudioData {
-    pub fn new(input: ffmpeg_next::format::context::Input) -> Result<Self, Error> {
-        let input_stream = get_audio_stream!(input);
-        let audio_stream_index = input_stream.index();
-        let context =
-            ffmpeg_next::codec::context::Context::from_parameters(input_stream.parameters())?;
-        let mut decoder = context.decoder().audio()?;
-        decoder.set_parameters(input_stream.parameters())?;
-        Ok(Self {
-            input,
-            decoder,
-            frame: ffmpeg_next::frame::Audio::empty(),
-            audio_stream_index,
-        })
-    }
-}
+pub type FFMpegAudioData = FFMpegInput<ffmpeg_next::decoder::Audio, ffmpeg_next::frame::Audio>;
 
 macro_rules! output_to_buffer {
     ( $self:ident, $num_channels:ident, $num_samples:ident, $sample_buffer:ident, $tp:ty ) => {{
@@ -142,48 +112,43 @@ macro_rules! process_samples {
 impl AudioData for FFMpegAudioData {
     /// return (sample_rate, num_samples), save the sample in sample_buffer,
     /// sample data must be range in ```[-1.0,1.0]```.
-    fn next_package(
+    fn next_frame(
         &mut self,
         sample_buffer: &mut Vec<Vec<f32>>,
     ) -> Result<Option<(usize, usize)>, Error> {
-        while let Some((stream, package)) = self.input.packets().next() {
-            if stream.index() != self.audio_stream_index {
-                continue;
-            }
-
-            self.decoder.send_packet(&package).unwrap();
-            self.decoder.receive_frame(&mut self.frame).unwrap();
-            let sample_rate = self.frame.rate() as usize;
-            let num_channels = self.frame.channels() as usize;
-            let num_samples = self.frame.samples();
-
-            match self.frame.format() {
-                ffmpeg_next::format::Sample::U8(tp) => {
-                    process_samples!(tp, self, num_channels, num_samples, sample_buffer, u8);
-                }
-                ffmpeg_next::format::Sample::I16(tp) => {
-                    process_samples!(tp, self, num_channels, num_samples, sample_buffer, i16);
-                }
-                ffmpeg_next::format::Sample::I32(tp) => {
-                    process_samples!(tp, self, num_channels, num_samples, sample_buffer, i32);
-                }
-                ffmpeg_next::format::Sample::I64(_) => {
-                    unimplemented!()
-                }
-                ffmpeg_next::format::Sample::F32(_) => {
-                    unimplemented!()
-                }
-                ffmpeg_next::format::Sample::F64(_) => {
-                    unimplemented!()
-                }
-                ffmpeg_next::format::Sample::None => {
-                    return Err(Error::ArgumentError(
-                        "Unsupported ffmpeg sample format `None`".into(),
-                    ));
-                }
-            }
-            return Ok(Some((sample_rate, num_samples)));
+        if !self.receive_frame()? {
+            return Ok(None);
         }
-        Ok(None)
+
+        let sample_rate = self.frame.rate() as usize;
+        let num_channels = self.frame.channels() as usize;
+        let num_samples = self.frame.samples();
+
+        match self.frame.format() {
+            ffmpeg_next::format::Sample::U8(tp) => {
+                process_samples!(tp, self, num_channels, num_samples, sample_buffer, u8);
+            }
+            ffmpeg_next::format::Sample::I16(tp) => {
+                process_samples!(tp, self, num_channels, num_samples, sample_buffer, i16);
+            }
+            ffmpeg_next::format::Sample::I32(tp) => {
+                process_samples!(tp, self, num_channels, num_samples, sample_buffer, i32);
+            }
+            ffmpeg_next::format::Sample::I64(_) => {
+                unimplemented!()
+            }
+            ffmpeg_next::format::Sample::F32(_) => {
+                unimplemented!()
+            }
+            ffmpeg_next::format::Sample::F64(_) => {
+                unimplemented!()
+            }
+            ffmpeg_next::format::Sample::None => {
+                return Err(Error::ArgumentError(
+                    "Unsupported ffmpeg sample format `None`".into(),
+                ));
+            }
+        }
+        return Ok(Some((sample_rate, num_samples)));
     }
 }

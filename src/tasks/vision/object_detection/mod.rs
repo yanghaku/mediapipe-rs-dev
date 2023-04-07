@@ -83,7 +83,7 @@ impl ObjectDetector {
 
     /// Detect input video stream, and collect all results to [`Vec`]
     #[inline(always)]
-    pub fn detect_video<'a>(
+    pub fn detect_for_video<'a>(
         &'a self,
         input_stream: impl InToTensorsIterator<'a>,
     ) -> Result<Vec<DetectionResult>, Error> {
@@ -186,7 +186,7 @@ impl<'a> ObjectDetectorSession<'a> {
 
     /// Detect input video stream use this session, and collect all results to [`Vec`]
     #[inline(always)]
-    pub fn detect_video(
+    pub fn detect_for_video(
         &'a mut self,
         input_stream: impl InToTensorsIterator<'a>,
     ) -> Result<Vec<DetectionResult>, Error> {

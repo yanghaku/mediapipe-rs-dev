@@ -49,12 +49,12 @@ macro_rules! output_to_buffer {
 
 impl AudioData for SymphoniaAudioData {
     #[inline]
-    fn next_package(
+    fn next_frame(
         &mut self,
         sample_buffer: &mut Vec<Vec<f32>>,
     ) -> Result<Option<(usize, usize)>, Error> {
         match self.format_reader.next_packet() {
-            Ok(p) => match self.decoder.decode(&p).unwrap() {
+            Ok(p) => match self.decoder.decode(&p)? {
                 AudioBufferRef::U8(r) => {
                     output_to_buffer!(r, sample_buffer, u8)
                 }

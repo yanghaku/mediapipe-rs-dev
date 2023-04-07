@@ -38,7 +38,7 @@ pub struct AudioToTensorInfo {
 pub trait AudioData {
     /// return (sample_rate, num_samples), save the sample in sample_buffer,
     /// sample data must be range in ```[-1.0,1.0]```.
-    fn next_package(
+    fn next_frame(
         &mut self,
         sample_buffer: &mut Vec<Vec<f32>>,
     ) -> Result<Option<(usize, usize)>, Error>;
