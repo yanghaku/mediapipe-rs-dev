@@ -1,4 +1,4 @@
-pub(crate) struct ClassifierBuilder {
+pub(crate) struct ClassificationOptions {
     /// The maximum number of top-scored classification results to return. If < 0,
     /// all available results will be returned. If 0, an invalid argument error is
     /// returned.
@@ -23,7 +23,7 @@ pub(crate) struct ClassifierBuilder {
     pub category_deny_list: Vec<String>,
 }
 
-impl Default for ClassifierBuilder {
+impl Default for ClassificationOptions {
     fn default() -> Self {
         Self {
             display_names_locale: "en".into(),
@@ -35,49 +35,49 @@ impl Default for ClassifierBuilder {
     }
 }
 
-macro_rules! classifier_builder_impl {
+macro_rules! classification_options_impl {
     () => {
         #[inline(always)]
         pub fn display_names_locale(mut self, display_names_locale: String) -> Self {
-            self.classifier_builder.display_names_locale = display_names_locale;
+            self.classification_options.display_names_locale = display_names_locale;
             self
         }
 
         #[inline(always)]
         pub fn max_results(mut self, max_results: i32) -> Self {
-            self.classifier_builder.max_results = max_results;
+            self.classification_options.max_results = max_results;
             self
         }
 
         #[inline(always)]
         pub fn score_threshold(mut self, score_threshold: f32) -> Self {
-            self.classifier_builder.score_threshold = score_threshold;
+            self.classification_options.score_threshold = score_threshold;
             self
         }
 
         #[inline(always)]
         pub fn category_allow_list(mut self, category_allow_list: Vec<String>) -> Self {
-            self.classifier_builder.category_allow_list = category_allow_list;
+            self.classification_options.category_allow_list = category_allow_list;
             self
         }
 
         #[inline(always)]
         pub fn category_deny_list(mut self, category_deny_list: Vec<String>) -> Self {
-            self.classifier_builder.category_deny_list = category_deny_list;
+            self.classification_options.category_deny_list = category_deny_list;
             self
         }
     };
 }
 
-macro_rules! classifier_builder_check {
+macro_rules! classification_options_check {
     ( $self:ident ) => {{
-        if $self.classifier_builder.max_results == 0 {
+        if $self.classification_options.max_results == 0 {
             return Err(crate::Error::ArgumentError(
                 "The number of max results cannot be zero".into(),
             ));
         }
-        if !$self.classifier_builder.category_allow_list.is_empty()
-            && !$self.classifier_builder.category_deny_list.is_empty()
+        if !$self.classification_options.category_allow_list.is_empty()
+            && !$self.classification_options.category_deny_list.is_empty()
         {
             return Err(crate::Error::ArgumentError(
                 "Cannot use both `category_allow_list` and `category_deny_list`".into(),
@@ -86,31 +86,37 @@ macro_rules! classifier_builder_check {
     }};
 }
 
-macro_rules! classifier_build_info_get_impl {
+macro_rules! classification_options_get_impl {
     () => {
         #[inline(always)]
         pub fn max_result(&self) -> i32 {
-            self.build_info.classifier_builder.max_results
+            self.build_options.classification_options.max_results
         }
 
         #[inline(always)]
         pub fn score_threshold(&self) -> f32 {
-            self.build_info.classifier_builder.score_threshold
+            self.build_options.classification_options.score_threshold
         }
 
         #[inline(always)]
         pub fn display_names_locale(&self) -> &String {
-            &self.build_info.classifier_builder.display_names_locale
+            &self
+                .build_options
+                .classification_options
+                .display_names_locale
         }
 
         #[inline(always)]
         pub fn category_allow_list(&self) -> &Vec<String> {
-            &self.build_info.classifier_builder.category_allow_list
+            &self
+                .build_options
+                .classification_options
+                .category_allow_list
         }
 
         #[inline(always)]
         pub fn category_deny_list(&self) -> &Vec<String> {
-            &self.build_info.classifier_builder.category_deny_list
+            &self.build_options.classification_options.category_deny_list
         }
     };
 }

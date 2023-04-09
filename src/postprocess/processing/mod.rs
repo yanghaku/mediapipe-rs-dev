@@ -1,7 +1,6 @@
 #![allow(unused)]
 
-use super::ops::Dequantize;
-use super::*;
+use crate::postprocess::ops::*;
 use crate::TensorType;
 
 struct OutputBuffer {
@@ -49,13 +48,14 @@ macro_rules! empty_output_buffer {
 }
 
 macro_rules! realloc_output_buffer {
-    ( $self:expr, $new_size:ident ) => {
+    ( $self:expr, $new_size:expr ) => {
+        let new_size = $new_size;
         if let Some(ref mut t) = $self.quantization_parameters {
-            if t.1.len() < $new_size {
-                t.1.resize($new_size, 0f32);
+            if t.1.len() < new_size {
+                t.1.resize(new_size, 0f32);
             }
         }
-        let s = tensor_byte_size!($self.tensor_type) * $new_size;
+        let s = tensor_byte_size!($self.tensor_type) * new_size;
         if $self.data_buffer.len() < s {
             $self.data_buffer.resize(s, 0);
         }
@@ -95,13 +95,10 @@ macro_rules! output_buffer_impl {
     };
 }
 
-mod classification_session;
-#[cfg(feature = "vision")]
-mod detection_session;
-mod utils;
-
-pub(crate) use classification_session::ClassificationSession;
-pub(crate) use utils::*;
+mod common;
+pub(crate) use common::*;
 
 #[cfg(feature = "vision")]
-pub(crate) use detection_session::{DetectionBoxFormat, DetectionSession};
+mod vision;
+#[cfg(feature = "vision")]
+pub(crate) use vision::*;

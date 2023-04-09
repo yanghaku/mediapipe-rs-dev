@@ -2,22 +2,21 @@ mod builder;
 pub use builder::TextClassifierBuilder;
 
 use crate::model::ModelResourceTrait;
-use crate::postprocess::sessions::{CategoriesFilter, ClassificationSession};
-use crate::postprocess::ClassificationResult;
+use crate::postprocess::{CategoriesFilter, ClassificationResult, TensorsToClassification};
 use crate::preprocess::Tensor;
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
 /// Performs classification on text.
 pub struct TextClassifier {
-    build_info: TextClassifierBuilder,
+    build_options: TextClassifierBuilder,
     model_resource: Box<dyn ModelResourceTrait>,
     graph: Graph,
 }
 
 impl TextClassifier {
-    base_task_build_info_get_impl!();
+    base_task_options_get_impl!();
 
-    classifier_build_info_get_impl!();
+    classification_options_get_impl!();
 
     #[inline(always)]
     pub fn new_session(&self) -> Result<TextClassifierSession, Error> {
@@ -40,24 +39,31 @@ impl TextClassifier {
         let execution_ctx = self.graph.init_execution_context()?;
         let labels = self.model_resource.output_tensor_labels_locale(
             0,
-            self.build_info
-                .classifier_builder
+            self.build_options
+                .classification_options
                 .display_names_locale
                 .as_ref(),
         )?;
 
-        let categories_filter =
-            CategoriesFilter::new(&self.build_info.classifier_builder, labels.0, labels.1);
-        let mut classification_session = ClassificationSession::new(
-            categories_filter,
-            self.build_info.classifier_builder.max_results,
+        let categories_filter = CategoriesFilter::new(
+            &self.build_options.classification_options,
+            labels.0,
+            labels.1,
         );
-        classification_session.add_output_cfg(vec![0; output_byte_size], output_tensor_type, None);
+        let mut tensors_to_classification = TensorsToClassification::new(
+            categories_filter,
+            self.build_options.classification_options.max_results,
+        );
+        tensors_to_classification.add_output_cfg(
+            vec![0; output_byte_size],
+            output_tensor_type,
+            None,
+        );
 
         Ok(TextClassifierSession {
             classifier: self,
             execution_ctx,
-            classification_session,
+            tensors_to_classification,
             input_tensor_shapes,
             input_tensor_bufs,
         })
@@ -83,7 +89,7 @@ impl TextClassifier {
 pub struct TextClassifierSession<'a> {
     classifier: &'a TextClassifier,
     execution_ctx: GraphExecutionContext<'a>,
-    classification_session: ClassificationSession<'a>,
+    tensors_to_classification: TensorsToClassification<'a>,
 
     input_tensor_shapes: Vec<&'a [usize]>,
     input_tensor_bufs: Vec<Vec<u8>>,
@@ -110,7 +116,7 @@ impl<'a> TextClassifierSession<'a> {
         }
         self.execution_ctx.compute()?;
 
-        let output_buffer = self.classification_session.output_buffer(0);
+        let output_buffer = self.tensors_to_classification.output_buffer(0);
         let output_size = self.execution_ctx.get_output(0, output_buffer)?;
         if output_size != output_buffer.len() {
             return Err(Error::ModelInconsistentError(format!(
@@ -120,6 +126,6 @@ impl<'a> TextClassifierSession<'a> {
             )));
         }
 
-        Ok(self.classification_session.result(None))
+        Ok(self.tensors_to_classification.result(None))
     }
 }

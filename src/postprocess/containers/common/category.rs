@@ -10,7 +10,7 @@ use std::fmt::{Display, Formatter};
 #[derive(Debug)]
 pub struct Category {
     /// The index of the category in the classification model output.
-    pub index: i32,
+    pub index: u32,
 
     /// The score for this category, e.g. (but not necessarily) a probability in \[0,1\].
     pub score: f32,

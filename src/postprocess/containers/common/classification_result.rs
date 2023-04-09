@@ -1,4 +1,4 @@
-use super::super::Category;
+use crate::postprocess::Category;
 use std::fmt::{Display, Formatter};
 
 /// Defines classification results for a given classifier head.

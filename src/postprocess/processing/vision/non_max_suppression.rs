@@ -13,14 +13,14 @@ pub enum NonMaxSuppressionAlgorithm {
     WEIGHTED,
 }
 
-pub struct NonMaxSuppressionBuilder {
+pub struct NonMaxSuppression {
     overlap_type: NonMaxSuppressionOverlapType,
     algorithm: NonMaxSuppressionAlgorithm,
     max_results: usize,
     min_suppression_threshold: f32,
 }
 
-impl NonMaxSuppressionBuilder {
+impl NonMaxSuppression {
     #[inline(always)]
     pub fn new(max_results: i32) -> Self {
         let max_results = if max_results < 0 {
@@ -37,15 +37,30 @@ impl NonMaxSuppressionBuilder {
     }
 
     #[inline(always)]
+    pub fn set_overlap_type(&mut self, overlap_type: NonMaxSuppressionOverlapType) {
+        self.overlap_type = overlap_type;
+    }
+
+    #[inline(always)]
     pub fn overlap_type(mut self, overlap_type: NonMaxSuppressionOverlapType) -> Self {
         self.overlap_type = overlap_type;
         self
     }
 
     #[inline(always)]
+    pub fn set_algorithm(&mut self, algorithm: NonMaxSuppressionAlgorithm) {
+        self.algorithm = algorithm;
+    }
+
+    #[inline(always)]
     pub fn algorithm(mut self, algorithm: NonMaxSuppressionAlgorithm) -> Self {
         self.algorithm = algorithm;
         self
+    }
+
+    #[inline(always)]
+    pub fn set_min_suppression_threshold(&mut self, min_suppression_threshold: f32) {
+        self.min_suppression_threshold = min_suppression_threshold;
     }
 
     #[inline(always)]

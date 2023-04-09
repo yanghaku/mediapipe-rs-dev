@@ -9,8 +9,8 @@ pub(crate) struct Anchor {
 /// Options to generate anchors for SSD object detection models.
 pub(crate) struct SsdAnchorsBuilder {
     /// Size of input images.
-    input_size_width: i32,
-    input_size_height: i32,
+    input_size_width: u32,
+    input_size_height: u32,
 
     /// Min and max scales for generating anchor boxes on feature maps.
     min_scale: f32,
@@ -24,8 +24,8 @@ pub(crate) struct SsdAnchorsBuilder {
     /// Number of output feature maps to generate the anchors on.
     num_layers: usize,
     /// Sizes of output feature maps to create anchors. Either feature_map size or stride should be provided.
-    feature_map_width: Vec<i32>,
-    feature_map_height: Vec<i32>,
+    feature_map_width: Vec<u32>,
+    feature_map_height: Vec<u32>,
 
     /// Strides of each output feature maps.
     strides: Vec<i32>,
@@ -76,8 +76,8 @@ pub(crate) struct SsdAnchorsBuilder {
 impl SsdAnchorsBuilder {
     #[inline(always)]
     pub fn new(
-        input_size_width: i32,
-        input_size_height: i32,
+        input_size_width: u32,
+        input_size_height: u32,
         min_scale: f32,
         max_scale: f32,
         num_layers: usize,
@@ -176,8 +176,8 @@ impl SsdAnchorsBuilder {
                 feature_map_width = self.feature_map_width[layer_id];
             } else {
                 let stride = self.strides[layer_id];
-                feature_map_height = (self.input_size_height as f32 / stride as f32).ceil() as i32;
-                feature_map_width = (self.input_size_width as f32 / stride as f32).ceil() as i32;
+                feature_map_height = (self.input_size_height as f32 / stride as f32).ceil() as u32;
+                feature_map_width = (self.input_size_width as f32 / stride as f32).ceil() as u32;
             }
 
             for y in 0..feature_map_height {
@@ -211,13 +211,13 @@ impl SsdAnchorsBuilder {
     }
 
     /// Size of input images.
-    pub fn input_size_width(mut self, input_size_width: i32) -> Self {
+    pub fn input_size_width(mut self, input_size_width: u32) -> Self {
         self.input_size_width = input_size_width;
         self
     }
 
     #[inline(always)]
-    pub fn input_size_height(mut self, input_size_height: i32) -> Self {
+    pub fn input_size_height(mut self, input_size_height: u32) -> Self {
         self.input_size_height = input_size_height;
         self
     }
@@ -257,13 +257,13 @@ impl SsdAnchorsBuilder {
 
     /// Sizes of output feature maps to create anchors. Either feature_map size or stride should be provided.
     #[inline(always)]
-    pub fn feature_map_width(mut self, feature_map_width: Vec<i32>) -> Self {
+    pub fn feature_map_width(mut self, feature_map_width: Vec<u32>) -> Self {
         self.feature_map_width = feature_map_width;
         self
     }
 
     #[inline(always)]
-    pub fn feature_map_height(mut self, feature_map_height: Vec<i32>) -> Self {
+    pub fn feature_map_height(mut self, feature_map_height: Vec<u32>) -> Self {
         self.feature_map_height = feature_map_height;
         self
     }

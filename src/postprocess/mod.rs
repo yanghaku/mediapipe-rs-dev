@@ -1,19 +1,17 @@
+/// result containers
 mod containers;
+pub use containers::*;
+
+/// stateless operators for tensor
 mod ops;
-pub(crate) mod sessions;
-pub mod utils;
-
-pub use containers::category::Category;
-pub use containers::classification_result::{ClassificationResult, Classifications};
-
-#[cfg(feature = "vision")]
-pub use containers::{
-    detection_result::{Detection, DetectionResult},
-    key_point::NormalizedKeypoint,
-    rect::Rect,
-};
-
 pub use ops::QuantizationParameters;
+
+/// stateful objects, convert tensor to results
+mod processing;
+pub(crate) use processing::*;
+
+/// utils to use the results, such as draw_utils
+pub mod utils;
 
 /// Used for stream data results, such video, audio.
 pub struct ResultsIter<TaskSession, ToTensorIterator>

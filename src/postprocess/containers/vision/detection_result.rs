@@ -1,4 +1,4 @@
-use super::super::{Category, NormalizedKeypoint, Rect};
+use crate::postprocess::{Category, NormalizedKeypoint, Rect};
 use std::fmt::{Display, Formatter};
 
 /// Detection for a single bounding box.

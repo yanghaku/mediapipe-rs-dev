@@ -1,4 +1,4 @@
-pub(crate) struct BaseTaskBuilder {
+pub(crate) struct BaseTaskOptions {
     /// The model asset file contents.
     pub model_asset_buffer: Option<crate::SharedSlice<u8>>,
 
@@ -9,7 +9,7 @@ pub(crate) struct BaseTaskBuilder {
     pub execution_target: crate::Device,
 }
 
-impl Default for BaseTaskBuilder {
+impl Default for BaseTaskOptions {
     fn default() -> Self {
         Self {
             model_asset_buffer: None,
@@ -19,70 +19,70 @@ impl Default for BaseTaskBuilder {
     }
 }
 
-macro_rules! base_builder_impl {
+macro_rules! base_task_options_impl {
     () => {
         #[inline(always)]
         pub fn model_asset_slice(mut self, model_asset_slice: crate::SharedSlice<u8>) -> Self {
-            self.base_task_builder.model_asset_buffer = Some(model_asset_slice);
+            self.base_task_options.model_asset_buffer = Some(model_asset_slice);
             self
         }
 
         #[inline(always)]
         pub fn model_asset_buffer(mut self, model_asset_buffer: Vec<u8>) -> Self {
-            self.base_task_builder.model_asset_buffer =
+            self.base_task_options.model_asset_buffer =
                 Some(crate::SharedSlice::from(model_asset_buffer));
             self
         }
 
         #[inline(always)]
         pub fn model_asset_path(mut self, model_asset_path: impl Into<std::path::PathBuf>) -> Self {
-            self.base_task_builder.model_asset_path = Some(model_asset_path.into());
+            self.base_task_options.model_asset_path = Some(model_asset_path.into());
             self
         }
 
         #[inline(always)]
         pub fn execution_target(mut self, execution_target: crate::Device) -> Self {
-            self.base_task_builder.execution_target = execution_target;
+            self.base_task_options.execution_target = execution_target;
             self
         }
 
         #[inline(always)]
         pub fn cpu(mut self) -> Self {
-            self.base_task_builder.execution_target = crate::Device::CPU;
+            self.base_task_options.execution_target = crate::Device::CPU;
             self
         }
 
         #[inline(always)]
         pub fn gpu(mut self) -> Self {
-            self.base_task_builder.execution_target = crate::Device::GPU;
+            self.base_task_options.execution_target = crate::Device::GPU;
             self
         }
 
         #[inline(always)]
         pub fn tpu(mut self) -> Self {
-            self.base_task_builder.execution_target = crate::Device::TPU;
+            self.base_task_options.execution_target = crate::Device::TPU;
             self
         }
     };
 }
 
-macro_rules! base_task_builder_check_and_get_buf {
+macro_rules! base_task_options_check_and_get_buf {
     ( $self:ident ) => {{
-        let a = $self.base_task_builder.model_asset_path.is_some();
-        let b = $self.base_task_builder.model_asset_buffer.is_some();
+        let a = $self.base_task_options.model_asset_path.is_some();
+        let b = $self.base_task_options.model_asset_buffer.is_some();
         if a {
             if b {
                 return Err(crate::Error::ArgumentError(
                     "Cannot use both `model_asset_path` and `model_asset_buffer`".into(),
                 ));
             } else {
-                let buf = std::fs::read($self.base_task_builder.model_asset_path.as_ref().unwrap())
+                let buf = std::fs::read($self.base_task_options.model_asset_path.as_ref().unwrap())
                     .map_err(|e| crate::Error::from(e))?;
                 crate::SharedSlice::from(buf)
             }
         } else {
             if b {
-                $self.base_task_builder.model_asset_buffer.take().unwrap()
+                $self.base_task_options.model_asset_buffer.take().unwrap()
             } else {
                 return Err(crate::Error::ArgumentError(
                     "Must use `model_asset_path` or `model_asset_buffer` to specify a model".into(),
@@ -92,11 +92,11 @@ macro_rules! base_task_builder_check_and_get_buf {
     }};
 }
 
-macro_rules! base_task_build_info_get_impl {
+macro_rules! base_task_options_get_impl {
     () => {
         #[inline(always)]
         pub fn execution_target(&self) -> crate::Device {
-            self.build_info.base_task_builder.execution_target
+            self.build_options.base_task_options.execution_target
         }
     };
 }

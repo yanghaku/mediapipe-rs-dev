@@ -1,13 +1,13 @@
 use super::*;
-use crate::tasks::common::ClassifierBuilder;
+use crate::postprocess::{ClassificationResult, Classifications};
 
-pub(crate) struct ClassificationSession<'a> {
+pub(crate) struct TensorsToClassification<'a> {
     categories_filter: CategoriesFilter<'a>,
     outputs: Vec<OutputBuffer>,
     max_results: usize,
 }
 
-impl<'a> ClassificationSession<'a> {
+impl<'a> TensorsToClassification<'a> {
     #[inline(always)]
     pub(crate) fn new(categories_filter: CategoriesFilter<'a>, max_results: i32) -> Self {
         let max_results = if max_results < 0 {
@@ -38,7 +38,7 @@ impl<'a> ClassificationSession<'a> {
             let scores = output_buffer_mut_slice!(out);
             let mut categories = Vec::new();
             for i in 0..scores.len() {
-                if let Some(category) = self.categories_filter.new_category(i, scores[i]) {
+                if let Some(category) = self.categories_filter.create_category(i, scores[i]) {
                     categories.push(category);
                 }
             }

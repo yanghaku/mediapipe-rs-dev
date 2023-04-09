@@ -2,24 +2,25 @@ mod builder;
 pub use builder::AudioClassifierBuilder;
 
 use crate::model::ModelResourceTrait;
-use crate::postprocess::sessions::{CategoriesFilter, ClassificationSession};
-use crate::postprocess::{ClassificationResult, ResultsIter};
+use crate::postprocess::{
+    CategoriesFilter, ClassificationResult, ResultsIter, TensorsToClassification,
+};
 use crate::preprocess::{InToTensorsIterator, TensorsIterator};
 use crate::tasks::TaskSession;
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
 /// Performs classification on audio.
 pub struct AudioClassifier {
-    build_info: AudioClassifierBuilder,
+    build_options: AudioClassifierBuilder,
     model_resource: Box<dyn ModelResourceTrait>,
     graph: Graph,
     input_tensor_type: TensorType,
 }
 
 impl AudioClassifier {
-    base_task_build_info_get_impl!();
+    base_task_options_get_impl!();
 
-    classifier_build_info_get_impl!();
+    classification_options_get_impl!();
 
     #[inline(always)]
     pub fn new_session(&self) -> Result<AudioClassifierSession, Error> {
@@ -35,19 +36,22 @@ impl AudioClassifier {
         let execution_ctx = self.graph.init_execution_context()?;
         let labels = self.model_resource.output_tensor_labels_locale(
             0,
-            self.build_info
-                .classifier_builder
+            self.build_options
+                .classification_options
                 .display_names_locale
                 .as_ref(),
         )?;
 
-        let categories_filter =
-            CategoriesFilter::new(&self.build_info.classifier_builder, labels.0, labels.1);
-        let mut classification_session = ClassificationSession::new(
-            categories_filter,
-            self.build_info.classifier_builder.max_results,
+        let categories_filter = CategoriesFilter::new(
+            &self.build_options.classification_options,
+            labels.0,
+            labels.1,
         );
-        classification_session.add_output_cfg(
+        let mut tensors_to_classification = TensorsToClassification::new(
+            categories_filter,
+            self.build_options.classification_options.max_results,
+        );
+        tensors_to_classification.add_output_cfg(
             vec![0; output_byte_size],
             output_tensor_type,
             quantization_parameters,
@@ -55,7 +59,7 @@ impl AudioClassifier {
         Ok(AudioClassifierSession {
             classifier: self,
             execution_ctx,
-            classification_session,
+            tensors_to_classification,
             input_tensor_shape,
             input_buffer: vec![0; tensor_bytes!(self.input_tensor_type, input_tensor_shape)],
         })
@@ -92,7 +96,7 @@ impl AudioClassifier {
 pub struct AudioClassifierSession<'a> {
     classifier: &'a AudioClassifier,
     execution_ctx: GraphExecutionContext<'a>,
-    classification_session: ClassificationSession<'a>,
+    tensors_to_classification: TensorsToClassification<'a>,
 
     // only one input and one output
     input_tensor_shape: &'a [usize],
@@ -131,7 +135,7 @@ impl<'a> TaskSession for AudioClassifierSession<'a> {
             )?;
             self.execution_ctx.compute()?;
 
-            let output_buffer = self.classification_session.output_buffer(0);
+            let output_buffer = self.tensors_to_classification.output_buffer(0);
             let output_size = self.execution_ctx.get_output(0, output_buffer)?;
             if output_size != output_buffer.len() {
                 return Err(Error::ModelInconsistentError(format!(
@@ -141,7 +145,9 @@ impl<'a> TaskSession for AudioClassifierSession<'a> {
                 )));
             }
 
-            return Ok(Some(self.classification_session.result(Some(timestamp_ms))));
+            return Ok(Some(
+                self.tensors_to_classification.result(Some(timestamp_ms)),
+            ));
         }
         Ok(None)
     }

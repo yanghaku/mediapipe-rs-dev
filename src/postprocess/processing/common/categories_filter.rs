@@ -1,6 +1,6 @@
 use crate::model::MemoryTextFile;
 use crate::postprocess::Category;
-use crate::tasks::common::ClassifierBuilder;
+use crate::tasks::common::ClassificationOptions;
 use std::borrow::Cow;
 use std::collections::HashSet;
 
@@ -15,8 +15,17 @@ pub(crate) struct CategoriesFilter<'a> {
 }
 
 impl<'a> CategoriesFilter<'a> {
+    /// create a empty categories filter, just filter the score threshold.
+    #[inline(always)]
+    pub(crate) fn new_empty(score_threshold: f32) -> Self {
+        Self {
+            labels: Vec::new(),
+            score_threshold,
+        }
+    }
+
     pub(crate) fn new(
-        option: &ClassifierBuilder,
+        option: &ClassificationOptions,
         labels: &'a [u8],
         labels_locale: Option<&'a [u8]>,
     ) -> Self {
@@ -63,11 +72,11 @@ impl<'a> CategoriesFilter<'a> {
     }
 
     #[inline(always)]
-    pub fn new_category(&self, index: usize, score: f32) -> Option<Category> {
+    pub fn create_category(&self, index: usize, score: f32) -> Option<Category> {
         if score >= self.score_threshold {
             if let Some(Label::Allowed((l, l_locale))) = self.labels.get(index) {
                 return Some(Category {
-                    index: index as i32,
+                    index: index as u32,
                     score,
                     category_name: Some(l.clone().into_owned()),
                     display_name: l_locale.clone().map(|l| l.into_owned()),

@@ -520,10 +520,10 @@ impl<'buf> LocalFileHeader<'buf> {
     }
 }
 
-pub(super) struct ZipFiles<'buf> {
+pub(crate) struct ZipFiles<'buf> {
     buf: &'buf [u8],
     end_of_central_directory_record: EndOfCentralDirectoryRecord<'buf>,
-    files: HashMap<Cow<'buf, str>, &'buf [u8]>,
+    files: HashMap<Cow<'buf, str>, std::ops::Range<usize>>,
 }
 
 impl<'buf> ZipFiles<'buf> {
@@ -561,8 +561,10 @@ impl<'buf> ZipFiles<'buf> {
             let local_file_head_offset = c.relative_offset_of_local_header() as usize;
             let local_file_head = LocalFileHeader::new(&buf[local_file_head_offset..])?;
             let file_offset = local_file_head_offset + local_file_head.size();
-            let file_content = &buf[file_offset..file_offset + c.uncompressed_size() as usize];
-            files.insert(filename, file_content);
+            files.insert(
+                filename,
+                file_offset..(file_offset + c.uncompressed_size() as usize),
+            );
 
             start += c.size();
         }
@@ -574,12 +576,12 @@ impl<'buf> ZipFiles<'buf> {
     }
 
     #[inline(always)]
-    pub fn files(&self) -> &HashMap<Cow<'buf, str>, &'buf [u8]> {
-        &self.files
+    pub fn get_file(&self, name: &str) -> Option<&'buf [u8]> {
+        self.files.get(name).map(|r| &self.buf[r.clone()])
     }
 
     #[inline(always)]
-    pub fn get_file(&self, name: &str) -> Option<&'buf [u8]> {
+    pub fn get_file_offset(&self, name: &str) -> Option<std::ops::Range<usize>> {
         self.files.get(name).cloned()
     }
 }

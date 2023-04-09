@@ -1,32 +1,32 @@
 use super::AudioClassifier;
 use crate::model::ModelResourceTrait;
-use crate::tasks::common::{BaseTaskBuilder, ClassifierBuilder};
+use crate::tasks::common::{BaseTaskOptions, ClassificationOptions};
 use crate::Error;
 
 /// Configure the properties of a new Audio classification task.
 /// Methods can be chained on it in order to configure it.
 pub struct AudioClassifierBuilder {
-    pub(super) base_task_builder: BaseTaskBuilder,
-    pub(super) classifier_builder: ClassifierBuilder,
+    pub(super) base_task_options: BaseTaskOptions,
+    pub(super) classification_options: ClassificationOptions,
 }
 
 impl AudioClassifierBuilder {
     #[inline(always)]
     pub fn new() -> Self {
         Self {
-            base_task_builder: Default::default(),
-            classifier_builder: Default::default(),
+            base_task_options: Default::default(),
+            classification_options: Default::default(),
         }
     }
 
-    base_builder_impl!();
+    base_task_options_impl!();
 
-    classifier_builder_impl!();
+    classification_options_impl!();
 
     #[inline]
     pub fn finalize(mut self) -> Result<AudioClassifier, Error> {
-        classifier_builder_check!(self);
-        let buf = base_task_builder_check_and_get_buf!(self);
+        classification_options_check!(self);
+        let buf = base_task_options_check_and_get_buf!(self);
 
         // change the lifetime to 'static, because the buf will move to graph and will not be released.
         let model_resource_ref = crate::model::parse_model(buf.as_ref())?;
@@ -42,12 +42,12 @@ impl AudioClassifierBuilder {
 
         let graph = crate::GraphBuilder::new(
             model_resource.model_backend(),
-            self.base_task_builder.execution_target,
+            self.base_task_options.execution_target,
         )
         .build_from_shared_slices([buf])?;
 
         return Ok(AudioClassifier {
-            build_info: self,
+            build_options: self,
             model_resource,
             graph,
             input_tensor_type,

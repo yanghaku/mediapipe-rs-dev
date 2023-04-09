@@ -1,4 +1,8 @@
 #[macro_use]
-mod builder;
+mod options;
 
-pub(crate) use builder::*;
+#[macro_use]
+#[cfg(feature = "vision")]
+mod detection_common_impl;
+
+pub(crate) use options::*;

@@ -16,3 +16,10 @@ impl Sigmoid for [f32] {
             .for_each(|z| *z = 1f32 / (1f32 + (-(*z)).exp()));
     }
 }
+
+impl Sigmoid for f32 {
+    #[inline(always)]
+    fn sigmoid_inplace(&mut self) {
+        *self = 1f32 / (1f32 + (-(*self)).exp())
+    }
+}

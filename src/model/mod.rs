@@ -115,9 +115,30 @@ macro_rules! check_quantization_parameters {
     };
 }
 
+macro_rules! search_file_in_zip {
+    ( $zip_files:expr, $buf:expr, $candidate_list:expr, $task_name:expr ) => {{
+        let mut search_result = None;
+        for name in $candidate_list {
+            if let Some(r) = $zip_files.get_file_offset(*name) {
+                search_result = Some(r);
+                break;
+            }
+        }
+        if let Some(r) = search_result {
+            let len = r.end - r.start;
+            $buf.subslice(r.start, len).unwrap()
+        } else {
+            return Err(crate::Error::ModelInconsistentError(format!(
+                "Cannot find model asset file for `{}` task, candidate list is `{:?}`",
+                $task_name, $candidate_list
+            )));
+        }
+    }};
+}
+
 mod memory_text_file;
 mod tflite;
 mod zip;
 
 pub(crate) use memory_text_file::MemoryTextFile;
-use zip::ZipFiles;
+pub(crate) use zip::ZipFiles;

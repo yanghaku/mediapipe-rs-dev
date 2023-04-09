@@ -2,15 +2,12 @@ mod builder;
 pub use builder::ObjectDetectorBuilder;
 
 use crate::model::ModelResourceTrait;
-use crate::postprocess::sessions::{CategoriesFilter, DetectionSession};
-use crate::postprocess::{DetectionResult, ResultsIter};
-use crate::preprocess::{InToTensorsIterator, Tensor, TensorsIterator};
-use crate::tasks::TaskSession;
+use crate::postprocess::{CategoriesFilter, DetectionResult, TensorsToDetection};
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
 /// Performs object detection on single images, video frames, or live stream.
 pub struct ObjectDetector {
-    build_info: ObjectDetectorBuilder,
+    build_options: ObjectDetectorBuilder,
     model_resource: Box<dyn ModelResourceTrait>,
     graph: Graph,
 
@@ -23,23 +20,10 @@ pub struct ObjectDetector {
     input_tensor_type: TensorType,
 }
 
-macro_rules! get_type_and_quantization {
-    ( $self:ident, $index:expr ) => {{
-        let t =
-            model_resource_check_and_get_impl!($self.model_resource, output_tensor_type, $index);
-        let q = $self
-            .model_resource
-            .output_tensor_quantization_parameters($index);
-        check_quantization_parameters!(t, q, $index);
-
-        (t, q)
-    }};
-}
-
 impl ObjectDetector {
-    base_task_build_info_get_impl!();
+    classification_options_get_impl!();
 
-    classifier_build_info_get_impl!();
+    detector_impl!(ObjectDetectorSession, DetectionResult);
 
     #[inline(always)]
     pub fn new_session(&self) -> Result<ObjectDetectorSession, Error> {
@@ -47,17 +31,20 @@ impl ObjectDetector {
             model_resource_check_and_get_impl!(self.model_resource, input_tensor_shape, 0);
         let labels = self.model_resource.output_tensor_labels_locale(
             self.categories_buf_index,
-            self.build_info
-                .classifier_builder
+            self.build_options
+                .classification_options
                 .display_names_locale
                 .as_ref(),
         )?;
 
-        let categories_filter =
-            CategoriesFilter::new(&self.build_info.classifier_builder, labels.0, labels.1);
-        let detection_session = DetectionSession::new(
+        let categories_filter = CategoriesFilter::new(
+            &self.build_options.classification_options,
+            labels.0,
+            labels.1,
+        );
+        let tensors_to_detection = TensorsToDetection::new(
             categories_filter,
-            self.build_info.classifier_builder.max_results,
+            self.build_options.classification_options.max_results,
             &self.bound_box_properties,
             get_type_and_quantization!(self, self.location_buf_index),
             get_type_and_quantization!(self, self.categories_buf_index),
@@ -68,43 +55,11 @@ impl ObjectDetector {
         Ok(ObjectDetectorSession {
             detector: self,
             execution_ctx,
-            detection_session,
+            tensors_to_detection,
             num_box_buf: [0f32],
             input_tensor_shape,
             input_buffer: vec![0; tensor_bytes!(self.input_tensor_type, input_tensor_shape)],
         })
-    }
-
-    /// Detect one image.
-    #[inline(always)]
-    pub fn detect(&self, input: &impl Tensor) -> Result<DetectionResult, Error> {
-        self.new_session()?.detect(input)
-    }
-
-    /// Detect input video stream, and collect all results to [`Vec`]
-    #[inline(always)]
-    pub fn detect_for_video<'a>(
-        &'a self,
-        input_stream: impl InToTensorsIterator<'a>,
-    ) -> Result<Vec<DetectionResult>, Error> {
-        let iter = self.detection_results_iter(input_stream)?;
-        let mut session = self.new_session()?;
-        iter.to_vec(&mut session)
-    }
-
-    /// Return a iterator for results, process input stream when poll next result.
-    #[inline(always)]
-    pub fn detection_results_iter<'a, T>(
-        &'a self,
-        input_stream: T,
-    ) -> Result<ResultsIter<ObjectDetectorSession<'_>, T::Iter>, Error>
-    where
-        T: InToTensorsIterator<'a>,
-    {
-        let to_tensor_info =
-            model_resource_check_and_get_impl!(self.model_resource, to_tensor_info, 0);
-        let input_tensors_iter = input_stream.into_tensors_iter(to_tensor_info)?;
-        Ok(ResultsIter::new(input_tensors_iter))
     }
 }
 
@@ -122,7 +77,7 @@ impl ObjectDetector {
 pub struct ObjectDetectorSession<'a> {
     detector: &'a ObjectDetector,
     execution_ctx: GraphExecutionContext<'a>,
-    detection_session: DetectionSession<'a>,
+    tensors_to_detection: TensorsToDetection<'a>,
 
     num_box_buf: [f32; 1],
     input_tensor_shape: &'a [usize],
@@ -155,60 +110,27 @@ impl<'a> ObjectDetectorSession<'a> {
         let num_box = self.num_box_buf[0].round() as usize;
 
         // realloc
-        self.detection_session.realloc(num_box, 0);
+        self.tensors_to_detection.realloc(num_box);
 
         // get other buffers
         self.execution_ctx.get_output(
             self.detector.location_buf_index,
-            self.detection_session.location_buf(),
+            self.tensors_to_detection.location_buf(),
         )?;
         self.execution_ctx.get_output(
             self.detector.categories_buf_index,
-            self.detection_session.categories_buf(),
+            self.tensors_to_detection.categories_buf().unwrap(),
         )?;
         self.execution_ctx.get_output(
             self.detector.score_buf_index,
-            self.detection_session.score_buf(),
+            self.tensors_to_detection.score_buf(),
         )?;
 
         // generate result
-        Ok(self.detection_session.result(num_box, 0))
+        Ok(self.tensors_to_detection.result(num_box))
     }
 
-    /// Detect one image
-    #[inline(always)]
-    pub fn detect(&mut self, input: &impl Tensor) -> Result<DetectionResult, Error> {
-        let to_tensor_info =
-            model_resource_check_and_get_impl!(self.detector.model_resource, to_tensor_info, 0);
-        input.to_tensors(to_tensor_info, &mut [&mut self.input_buffer])?;
-        self.compute(None)
-    }
-
-    /// Detect input video stream use this session, and collect all results to [`Vec`]
-    #[inline(always)]
-    pub fn detect_for_video(
-        &'a mut self,
-        input_stream: impl InToTensorsIterator<'a>,
-    ) -> Result<Vec<DetectionResult>, Error> {
-        self.detector
-            .detection_results_iter(input_stream)?
-            .to_vec(self)
-    }
+    detector_session_impl!(DetectionResult);
 }
 
-impl<'a> TaskSession for ObjectDetectorSession<'a> {
-    type Result = DetectionResult;
-
-    #[inline]
-    fn process_next<TensorsIter: TensorsIterator>(
-        &mut self,
-        input_tensors_iter: &mut TensorsIter,
-    ) -> Result<Option<Self::Result>, Error> {
-        if let Some(timestamp_ms) =
-            input_tensors_iter.next_tensors(&mut [&mut self.input_buffer])?
-        {
-            return Ok(Some(self.compute(Some(timestamp_ms))?));
-        }
-        Ok(None)
-    }
-}
+detection_task_session_impl!(ObjectDetectorSession, DetectionResult);
