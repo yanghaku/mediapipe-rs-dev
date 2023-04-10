@@ -13,7 +13,6 @@ pub struct HandDetector {
     model_resource: Box<dyn ModelResourceTrait>,
     graph: Graph,
 
-    bound_box_properties: [usize; 4],
     anchors: Vec<Anchor>,
     location_buf_index: usize,
     score_buf_index: usize,
@@ -45,7 +44,6 @@ impl HandDetector {
             &self.anchors,
             self.min_detection_confidence(),
             self.num_hands(),
-            &self.bound_box_properties,
             get_type_and_quantization!(self, self.location_buf_index),
             get_type_and_quantization!(self, self.score_buf_index),
         );

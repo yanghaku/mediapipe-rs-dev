@@ -96,7 +96,7 @@ impl NonMaxSuppression {
                 self.non_max_suppression(&mut detection_result.detections, indexed_scores);
             }
             NonMaxSuppressionAlgorithm::WEIGHTED => {
-                todo!("")
+                self.non_max_suppression_weighted(&mut detection_result.detections, indexed_scores);
             }
         }
     }
@@ -131,6 +131,86 @@ impl NonMaxSuppression {
 
         let mut iter = retains.iter();
         detections.retain(|_| *iter.next().unwrap());
+    }
+
+    fn non_max_suppression_weighted(
+        &self,
+        out_detections: &mut Vec<Detection>,
+        mut indexed_scores: Vec<(usize, f32)>,
+    ) {
+        let mut remains = Vec::with_capacity(indexed_scores.len());
+        let mut in_detections = std::mem::take(out_detections);
+        while !indexed_scores.is_empty() {
+            let detection = &mut in_detections[indexed_scores[0].0];
+            let categories = std::mem::take(&mut detection.categories);
+            let mut bounding_box = detection.bounding_box.clone();
+            let mut key_points = detection.key_points.take();
+            let mut total_score = indexed_scores[0].1;
+            bounding_box.top *= total_score;
+            bounding_box.bottom *= total_score;
+            bounding_box.left *= total_score;
+            bounding_box.right *= total_score;
+            if let Some(ref mut ks) = key_points {
+                for k in ks {
+                    k.x *= total_score;
+                    k.y *= total_score;
+                }
+            }
+
+            let location = &in_detections[indexed_scores[0].0].bounding_box;
+            for i in 1..indexed_scores.len() {
+                let indexed_score = indexed_scores[i];
+                let rest_detection = &in_detections[indexed_score.0];
+
+                let similarity = self.overlap_similarity(location, &rest_detection.bounding_box);
+                if similarity > self.min_suppression_threshold {
+                    let score = indexed_score.1;
+                    total_score += score;
+                    bounding_box.top += rest_detection.bounding_box.top * score;
+                    bounding_box.bottom += rest_detection.bounding_box.bottom * score;
+                    bounding_box.left += rest_detection.bounding_box.left * score;
+                    bounding_box.right += rest_detection.bounding_box.right * score;
+                    if let Some(ref mut k) = key_points {
+                        let add = rest_detection.key_points.as_ref().unwrap();
+                        for id in 0..add.len() {
+                            k[id].x += add[id].x * score;
+                            k[id].y += add[id].y * score;
+                        }
+                    }
+                } else {
+                    remains.push(indexed_score);
+                }
+            }
+
+            if total_score != 0. {
+                bounding_box.top /= total_score;
+                bounding_box.bottom /= total_score;
+                bounding_box.left /= total_score;
+                bounding_box.right /= total_score;
+                if let Some(ref mut ks) = key_points {
+                    for k in ks {
+                        k.x /= total_score;
+                        k.y /= total_score;
+                    }
+                }
+
+                out_detections.push(Detection {
+                    categories,
+                    bounding_box,
+                    key_points,
+                });
+                if out_detections.len() >= self.max_results {
+                    break;
+                }
+            }
+
+            if remains.is_empty() {
+                break;
+            } else {
+                indexed_scores.clear();
+                std::mem::swap(&mut remains, &mut indexed_scores);
+            }
+        }
     }
 
     #[inline]

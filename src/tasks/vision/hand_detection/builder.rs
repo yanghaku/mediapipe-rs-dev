@@ -82,7 +82,6 @@ impl HandDetectorBuilder {
             build_options: self,
             model_resource,
             graph,
-            bound_box_properties: [0, 1, 2, 3],
             anchors,
             location_buf_index: 0,
             score_buf_index: 1,

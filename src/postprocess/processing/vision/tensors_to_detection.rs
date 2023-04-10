@@ -1,5 +1,7 @@
 use super::*;
-use crate::postprocess::{CategoriesFilter, Category, Detection, DetectionResult, Rect};
+use crate::postprocess::{
+    CategoriesFilter, Category, Detection, DetectionResult, NormalizedKeypoint, Rect,
+};
 
 /// Tells the calculator how to convert the detector output to bounding boxes.
 #[derive(Debug, Clone, Copy)]
@@ -19,38 +21,7 @@ impl Default for DetectionBoxFormat {
     }
 }
 
-macro_rules! box_y_min {
-    ($box_indices:ident, $v:ident, $offset:ident) => {
-        $v[$offset + $box_indices[0]]
-    };
-}
-
-macro_rules! box_x_min {
-    ($box_indices:ident, $v:ident, $offset:ident) => {
-        $v[$offset + $box_indices[1]]
-    };
-}
-
-macro_rules! box_y_max {
-    ($box_indices:ident, $v:ident, $offset:ident) => {
-        $v[$offset + $box_indices[2]]
-    };
-}
-
-macro_rules! box_x_max {
-    ($box_indices:ident, $v:ident, $offset:ident) => {
-        $v[$offset + $box_indices[3]]
-    };
-}
-
-pub(crate) struct TensorsToDetection<'a> {
-    anchors: Option<&'a Vec<Anchor>>,
-    nms: NonMaxSuppression,
-
-    location_buf: OutputBuffer,
-    score_buf: OutputBuffer,
-    category_option: Option<(OutputBuffer, CategoriesFilter<'a>)>,
-
+struct ToDetectionOptions {
     /// The number of output classes predicted by the detection model.
     /// if categories buffer is not None, num_classes must be 1
     num_classes: usize,
@@ -82,15 +53,97 @@ pub(crate) struct TensorsToDetection<'a> {
     flip_vertically: bool, //[default = false];
 }
 
-macro_rules! check_valid {
-    ( $self:ident ) => {
-        assert!($self.num_coords >= $self.box_coord_offset);
+macro_rules! box_y_min {
+    ($options:ident, $v:ident) => {
+        $v[$options.box_indices[0] + $options.box_coord_offset]
+    };
+}
+
+macro_rules! box_x_min {
+    ($options:ident, $v:ident) => {
+        $v[$options.box_indices[1] + $options.box_coord_offset]
+    };
+}
+
+macro_rules! box_y_max {
+    ($options:ident, $v:ident) => {
+        $v[$options.box_indices[2] + $options.box_coord_offset]
+    };
+}
+
+macro_rules! box_x_max {
+    ($options:ident, $v:ident) => {
+        $v[$options.box_indices[3] + $options.box_coord_offset]
+    };
+}
+
+macro_rules! check_options_valid {
+    ( $self:expr ) => {
         assert!(
             $self.num_coords
-                >= $self.keypoint_coord_offset
+                >= $self.box_coord_offset
+                    + $self.keypoint_coord_offset
                     + $self.num_key_points * $self.num_values_per_key_point
         );
     };
+}
+
+macro_rules! process_scores {
+    ( $self:ident, $score:expr ) => {
+        if $self.options.sigmoid_score {
+            if let Some(t) = $self.options.score_clipping_thresh {
+                let mut s = $score;
+                if s < -t {
+                    s = -t;
+                }
+                if s > t {
+                    s = t;
+                }
+                s.sigmoid_inplace();
+                s
+            } else {
+                let mut s = $score;
+                s.sigmoid_inplace();
+                s
+            }
+        } else {
+            $score
+        }
+    };
+}
+
+impl Default for ToDetectionOptions {
+    fn default() -> Self {
+        Self {
+            box_format: Default::default(),
+            box_indices: [0, 1, 2, 3],
+            num_classes: 1,
+            num_coords: 4,
+            num_key_points: 0,
+            num_values_per_key_point: 2,
+            box_coord_offset: 0,
+            keypoint_coord_offset: 4,
+            x_scale: 0.0,
+            y_scale: 0.0,
+            w_scale: 0.0,
+            h_scale: 0.0,
+            min_score_threshold: 0., // default is 0
+            score_clipping_thresh: None,
+            apply_exponential_on_box_size: false,
+            sigmoid_score: false,
+            flip_vertically: false,
+        }
+    }
+}
+
+pub(crate) struct TensorsToDetection<'a> {
+    anchors: Option<&'a Vec<Anchor>>,
+    nms: NonMaxSuppression,
+
+    location_buf: OutputBuffer,
+    score_buf: OutputBuffer,
+    category_option: Option<(OutputBuffer, CategoriesFilter<'a>)>,
+    options: ToDetectionOptions,
 }
 
 impl<'a> TensorsToDetection<'a> {
@@ -98,38 +151,18 @@ impl<'a> TensorsToDetection<'a> {
         anchors: &'a Vec<Anchor>,
         min_score_threshold: f32,
         max_results: i32,
-        bound_box_properties: &[usize; 4],
         location_buf: (TensorType, Option<QuantizationParameters>),
         score_buf: (TensorType, Option<QuantizationParameters>),
     ) -> Self {
+        let mut options = ToDetectionOptions::default();
+        options.min_score_threshold = min_score_threshold;
         Self {
-            box_format: Default::default(),
-            box_indices: [
-                bound_box_properties[1], // y_min
-                bound_box_properties[0], // x_min
-                bound_box_properties[3], // y_max
-                bound_box_properties[2], // x_max
-            ],
             nms: NonMaxSuppression::new(max_results),
             location_buf: empty_output_buffer!(location_buf),
             score_buf: empty_output_buffer!(score_buf),
             anchors: Some(anchors),
             category_option: None,
-            num_classes: 1,
-            num_coords: 4,
-            num_key_points: 0,
-            num_values_per_key_point: 2,
-            box_coord_offset: 0,
-            keypoint_coord_offset: 4,
-            x_scale: 0.0,
-            y_scale: 0.0,
-            w_scale: 0.0,
-            h_scale: 0.0,
-            min_score_threshold,
-            score_clipping_thresh: None,
-            apply_exponential_on_box_size: false,
-            sigmoid_score: false,
-            flip_vertically: false,
+            options,
         }
     }
 
@@ -137,46 +170,37 @@ impl<'a> TensorsToDetection<'a> {
     pub(crate) fn new(
         categories_filter: CategoriesFilter<'a>,
         max_results: i32,
-        bound_box_properties: &[usize; 4],
         location_buf: (TensorType, Option<QuantizationParameters>),
         categories_buf: (TensorType, Option<QuantizationParameters>),
         score_buf: (TensorType, Option<QuantizationParameters>),
     ) -> Self {
         Self {
-            box_format: Default::default(),
-            box_indices: [
-                bound_box_properties[1], // y_min
-                bound_box_properties[0], // x_min
-                bound_box_properties[3], // y_max
-                bound_box_properties[2], // x_max
-            ],
+            anchors: None,
             nms: NonMaxSuppression::new(max_results),
             location_buf: empty_output_buffer!(location_buf),
             score_buf: empty_output_buffer!(score_buf),
             category_option: Some((empty_output_buffer!(categories_buf), categories_filter)),
-            num_classes: 1,
-            num_coords: 4,
-            num_key_points: 0,
-            num_values_per_key_point: 2,
-            box_coord_offset: 0,
-            keypoint_coord_offset: 4,
-            x_scale: 0.0,
-            y_scale: 0.0,
-            w_scale: 0.0,
-            h_scale: 0.0,
-            anchors: None,
-            min_score_threshold: 0.0,
-            flip_vertically: false,
-            score_clipping_thresh: None,
-            apply_exponential_on_box_size: false,
-            sigmoid_score: false,
+            options: Default::default(),
         }
+    }
+
+    pub(crate) fn set_box_indices(&mut self, bound_box_properties: &[usize; 4]) {
+        let box_indices = [
+            bound_box_properties[1], // y_min
+            bound_box_properties[0], // x_min
+            bound_box_properties[3], // y_max
+            bound_box_properties[2], // x_max
+        ];
+        for i in &box_indices {
+            assert!(*i < 4);
+        }
+        self.options.box_indices = box_indices;
     }
 
     #[inline(always)]
     pub(crate) fn set_num_coords(&mut self, num_coords: usize) {
-        self.num_coords = num_coords;
-        check_valid!(self);
+        self.options.num_coords = num_coords;
+        check_options_valid!(self.options);
     }
 
     #[inline(always)]
@@ -186,10 +210,10 @@ impl<'a> TensorsToDetection<'a> {
         num_values_per_key_point: usize,
         keypoint_coord_offset: usize,
     ) {
-        self.num_key_points = num_key_points;
-        self.num_values_per_key_point = num_values_per_key_point;
-        self.keypoint_coord_offset = keypoint_coord_offset;
-        check_valid!(self);
+        self.options.num_key_points = num_key_points;
+        self.options.num_values_per_key_point = num_values_per_key_point;
+        self.options.keypoint_coord_offset = keypoint_coord_offset;
+        check_options_valid!(self.options);
     }
 
     #[inline(always)]
@@ -200,25 +224,25 @@ impl<'a> TensorsToDetection<'a> {
         w_scale: f32,
         h_scale: f32,
     ) {
-        self.x_scale = x_scale;
-        self.y_scale = y_scale;
-        self.w_scale = w_scale;
-        self.h_scale = h_scale;
+        self.options.x_scale = x_scale;
+        self.options.y_scale = y_scale;
+        self.options.w_scale = w_scale;
+        self.options.h_scale = h_scale;
     }
 
     #[inline(always)]
     pub(crate) fn set_sigmoid_score(&mut self, sigmoid_score: bool) {
-        self.sigmoid_score = sigmoid_score;
+        self.options.sigmoid_score = sigmoid_score;
     }
 
     #[inline(always)]
     pub(crate) fn set_box_format(&mut self, box_format: DetectionBoxFormat) {
-        self.box_format = box_format;
+        self.options.box_format = box_format;
     }
 
     #[inline(always)]
     pub(crate) fn set_score_clipping_thresh(&mut self, score_clipping_thresh: f32) {
-        self.score_clipping_thresh = Some(score_clipping_thresh);
+        self.options.score_clipping_thresh = Some(score_clipping_thresh);
     }
 
     #[inline(always)]
@@ -257,7 +281,7 @@ impl<'a> TensorsToDetection<'a> {
 
     #[inline(always)]
     pub(crate) fn realloc(&mut self, num_boxes: usize) {
-        realloc_output_buffer!(self.score_buf, num_boxes * self.num_classes);
+        realloc_output_buffer!(self.score_buf, num_boxes * self.options.num_classes);
         if let Some(ref mut c) = self.category_option {
             realloc_output_buffer!(c.0, num_boxes);
         }
@@ -268,15 +292,15 @@ impl<'a> TensorsToDetection<'a> {
         let scores = output_buffer_mut_slice!(self.score_buf);
         let location = output_buffer_mut_slice!(self.location_buf);
         let category_option = if let Some(ref mut c) = self.category_option {
-            assert_eq!(self.num_classes, 1);
+            assert_eq!(self.options.num_classes, 1);
             Some((output_buffer_mut_slice!(c.0), &c.1))
         } else {
             None
         };
 
         // check buf if is valid
-        debug_assert!(location.len() >= num_boxes * self.num_coords);
-        debug_assert!(scores.len() >= num_boxes * self.num_classes);
+        debug_assert!(location.len() >= num_boxes * self.options.num_coords);
+        debug_assert!(scores.len() >= num_boxes * self.options.num_classes);
         if let Some(a) = self.anchors {
             debug_assert_eq!(a.len(), num_boxes);
         }
@@ -285,51 +309,57 @@ impl<'a> TensorsToDetection<'a> {
         if let Some((categories_buf, categories_filter)) = category_option {
             let mut index = 0;
             for i in 0..num_boxes {
+                let next_index = index + self.options.num_coords;
                 if let Some(category) =
                     categories_filter.create_category(categories_buf[i] as usize, scores[i])
                 {
-                    if let Some(d) =
-                        Self::generate_detection(&self.box_indices, category, location, index)
-                    {
+                    if let Some(d) = Self::generate_detection(
+                        &self.options,
+                        category,
+                        &location[index..next_index],
+                    ) {
                         detections.push(d);
                     }
                 }
-                index += self.num_coords;
+                index = next_index;
             }
         } else {
             let anchors = self.anchors.unwrap();
             let mut index = 0;
             let mut score_index = 0;
             for i in 0..num_boxes {
-                let score = if self.num_classes == 1 {
-                    scores[score_index]
-                } else {
-                    scores[score_index]
-                };
+                let mut max_score = process_scores!(self, scores[score_index]);
+                let mut class_index = 0;
+                let num_classes = self.options.num_classes;
+                if num_classes != 1 {
+                    for i in 1..num_classes {
+                        let s = process_scores!(self, scores[score_index + i]);
+                        if s > max_score {
+                            max_score = s;
+                            class_index = i;
+                        }
+                    }
+                }
+                score_index += num_classes;
 
-                if score >= self.min_score_threshold {
+                let next_index = index + self.options.num_coords;
+
+                if max_score >= self.options.min_score_threshold {
                     let category = Category {
-                        index: 0,
-                        score,
+                        index: class_index as u32,
+                        score: max_score,
                         category_name: None,
                         display_name: None,
                     };
+                    let raw_boxes = &mut location[index..next_index];
 
-                    Self::decode_boxes(
-                        location,
-                        anchors.as_slice(),
-                        self.box_format,
-                        num_boxes,
-                        self.num_key_points,
-                    );
-                    if let Some(d) =
-                        Self::generate_detection(&self.box_indices, category, location, index)
-                    {
+                    Self::decode_boxes(&self.options, raw_boxes, &anchors[i]);
+                    if let Some(d) = Self::generate_detection(&self.options, category, raw_boxes) {
                         detections.push(d);
                     }
                 }
 
-                index += self.num_coords;
+                index = next_index;
             }
         }
 
@@ -340,17 +370,22 @@ impl<'a> TensorsToDetection<'a> {
 
     #[inline(always)]
     fn generate_detection(
-        box_indices: &[usize],
+        options: &ToDetectionOptions,
         category: Category,
         location: &[f32],
-        index: usize,
     ) -> Option<Detection> {
-        let rect = Rect {
-            left: box_x_min!(box_indices, location, index),
-            top: box_y_min!(box_indices, location, index),
-            right: box_x_max!(box_indices, location, index),
-            bottom: box_y_max!(box_indices, location, index),
+        let mut rect = Rect {
+            left: box_x_min!(options, location),
+            top: box_y_min!(options, location),
+            right: box_x_max!(options, location),
+            bottom: box_y_max!(options, location),
         };
+        if options.flip_vertically {
+            let bottom = 1. - rect.top;
+            let top = 1. - rect.bottom;
+            rect.bottom = bottom;
+            rect.top = top;
+        }
         if rect.left.is_nan()
             || rect.right.is_nan()
             || rect.top.is_nan()
@@ -360,67 +395,105 @@ impl<'a> TensorsToDetection<'a> {
         {
             return None;
         }
-        // todo: keypoint
+
+        let key_points = if options.num_key_points != 0 {
+            let mut key_points = Vec::with_capacity(options.num_key_points);
+            let mut index = options.box_coord_offset + options.keypoint_coord_offset;
+            for _ in 0..options.num_key_points {
+                let y = if options.flip_vertically {
+                    1. - location[index + 1]
+                } else {
+                    location[index + 1]
+                };
+                key_points.push(NormalizedKeypoint {
+                    x: location[index],
+                    y,
+                    label: None,
+                    score: None,
+                });
+                index += options.num_values_per_key_point;
+            }
+
+            Some(key_points)
+        } else {
+            None
+        };
 
         Some(Detection {
             categories: vec![category],
             bounding_box: rect,
-            key_points: None,
+            key_points,
         })
     }
 
-    fn decode_boxes(
-        raw_boxes: &mut [f32],
-        anchors: &[Anchor],
-        box_format: DetectionBoxFormat,
-        num_boxes: usize,
-        key_point_num: usize,
-    ) {
-        let mut index = 0;
-        for i in 0..num_boxes {
-            let mut x_center;
-            let mut y_center;
-            let h;
-            let w;
-            match box_format {
-                DetectionBoxFormat::YXHW => {
-                    y_center = raw_boxes[0];
-                    x_center = raw_boxes[1];
-                    h = raw_boxes[2];
-                    w = raw_boxes[3];
-                }
-                DetectionBoxFormat::XYWH => {
-                    x_center = raw_boxes[0];
-                    y_center = raw_boxes[1];
-                    w = raw_boxes[2];
-                    h = raw_boxes[3];
-                }
-                DetectionBoxFormat::XYXY => {
-                    x_center = (-raw_boxes[0] + raw_boxes[2]) / 2.;
-                    y_center = (-raw_boxes[0 + 1] + raw_boxes[3]) / 2.;
-                    w = raw_boxes[2] + raw_boxes[0];
-                    h = raw_boxes[3] + raw_boxes[1];
-                }
+    fn decode_boxes(options: &ToDetectionOptions, raw_boxes: &mut [f32], anchor: &Anchor) {
+        let mut x_center;
+        let mut y_center;
+        let mut h;
+        let mut w;
+        let box_offset = options.box_coord_offset;
+        match options.box_format {
+            DetectionBoxFormat::YXHW => {
+                y_center = raw_boxes[box_offset];
+                x_center = raw_boxes[box_offset + 1];
+                h = raw_boxes[box_offset + 2];
+                w = raw_boxes[box_offset + 3];
             }
+            DetectionBoxFormat::XYWH => {
+                x_center = raw_boxes[box_offset];
+                y_center = raw_boxes[box_offset + 1];
+                w = raw_boxes[box_offset + 2];
+                h = raw_boxes[box_offset + 3];
+            }
+            DetectionBoxFormat::XYXY => {
+                x_center = (-raw_boxes[box_offset] + raw_boxes[box_offset + 2]) / 2.;
+                y_center = (-raw_boxes[box_offset + 1] + raw_boxes[box_offset + 3]) / 2.;
+                w = raw_boxes[box_offset + 2] + raw_boxes[box_offset];
+                h = raw_boxes[box_offset + 3] + raw_boxes[box_offset + 1];
+            }
+        }
 
-            // todo: x_scale, y_scale, h_scale, w_scale
-            let anchor = &anchors[i];
-            x_center = x_center / anchor.w + anchor.x_center;
-            y_center = y_center / anchor.h + anchor.y_center;
+        x_center = x_center / options.x_scale * anchor.w + anchor.x_center;
+        y_center = y_center / options.y_scale * anchor.h + anchor.y_center;
 
-            let h_div_2 = h / 2.;
-            let w_div_2 = w / 2.;
-            let ymin = y_center - h_div_2;
-            let xmin = x_center - w_div_2;
-            let ymax = y_center + h_div_2;
-            let xmax = x_center + w_div_2;
-            raw_boxes[index] = ymin;
-            raw_boxes[index + 1] = xmin;
-            raw_boxes[index + 2] = ymax;
-            raw_boxes[index + 3] = xmax;
+        if options.apply_exponential_on_box_size {
+            h = (h / options.h_scale).exp() * anchor.h;
+            w = (w / options.w_scale).exp() * anchor.w;
+        } else {
+            h = h / options.h_scale * anchor.h;
+            w = w / options.w_scale * anchor.w;
+        }
 
-            // todo: key points
-            index += 4 + (key_point_num << 1);
+        let h_div_2 = h / 2.;
+        let w_div_2 = w / 2.;
+        let ymin = y_center - h_div_2;
+        let xmin = x_center - w_div_2;
+        let ymax = y_center + h_div_2;
+        let xmax = x_center + w_div_2;
+        raw_boxes[box_offset] = ymin;
+        raw_boxes[box_offset + 1] = xmin;
+        raw_boxes[box_offset + 2] = ymax;
+        raw_boxes[box_offset + 3] = xmax;
+
+        if options.num_key_points != 0 {
+            let mut index = box_offset + options.keypoint_coord_offset;
+            for _ in 0..options.num_key_points {
+                let keypoint_y;
+                let keypoint_x;
+                match options.box_format {
+                    DetectionBoxFormat::YXHW => {
+                        keypoint_y = raw_boxes[index];
+                        keypoint_x = raw_boxes[index + 1];
+                    }
+                    _ => {
+                        keypoint_x = raw_boxes[index];
+                        keypoint_y = raw_boxes[index + 1];
+                    }
+                }
+                raw_boxes[index] = keypoint_x / options.x_scale * anchor.w + anchor.x_center;
+                raw_boxes[index + 1] = keypoint_y / options.y_scale * anchor.h + anchor.y_center;
+                index += options.num_values_per_key_point;
+            }
         }
     }
 }
