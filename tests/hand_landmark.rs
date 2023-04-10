@@ -7,6 +7,7 @@ const HANDS_1: &'static str = "assets/testdata/img/google_sample_woman_hands.jpg
 fn test_hand_detection() {
     let hand_landmarker = HandLandmarkerBuilder::new()
         .model_asset_path(MODEL_PATH)
+        .num_hands(5)
         .finalize()
         .unwrap();
     let hand_detector = hand_landmarker.subtask();

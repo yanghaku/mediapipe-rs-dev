@@ -70,17 +70,26 @@ mod ffmpeg {
     #[test]
     fn test_results_iter() {
         ffmpeg_next::init().unwrap();
-        let input = FFMpegVideoData::new(ffmpeg_next::format::input(&VIDEO_1).unwrap()).unwrap();
+        let input_1 = FFMpegVideoData::new(ffmpeg_next::format::input(&VIDEO_1).unwrap()).unwrap();
+        let input_2 = FFMpegVideoData::new(ffmpeg_next::format::input(&VIDEO_1).unwrap()).unwrap();
 
         let classifier = ImageClassifierBuilder::new()
             .model_asset_path(IMAGE_CLASSIFICATION_MODEL)
             .max_results(1)
             .finalize()
             .unwrap();
-        let mut results_iter = classifier.classify_results_iter(input).unwrap();
         let mut session = classifier.new_session().unwrap();
+
+        let mut results_iter = session.classify_for_video(input_1).unwrap();
         let mut num_frame = 0;
-        while let Some(result) = results_iter.next(&mut session).unwrap() {
+        while let Some(result) = results_iter.next().unwrap() {
+            eprintln!("Frame {}: {}", num_frame, result);
+            num_frame += 1;
+        }
+
+        let mut results_iter = session.classify_for_video(input_2).unwrap();
+        num_frame = 0;
+        while let Some(result) = results_iter.next().unwrap() {
             eprintln!("Frame {}: {}", num_frame, result);
             num_frame += 1;
         }

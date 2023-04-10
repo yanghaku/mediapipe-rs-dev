@@ -72,16 +72,16 @@ impl HandDetector {
     }
 }
 
-pub struct HandDetectorSession<'a> {
-    detector: &'a HandDetector,
-    execution_ctx: GraphExecutionContext<'a>,
-    tensors_to_detection: TensorsToDetection<'a>,
+pub struct HandDetectorSession<'model> {
+    detector: &'model HandDetector,
+    execution_ctx: GraphExecutionContext<'model>,
+    tensors_to_detection: TensorsToDetection<'model>,
 
-    input_tensor_shape: &'a [usize],
+    input_tensor_shape: &'model [usize],
     input_buffer: Vec<u8>,
 }
 
-impl<'a> HandDetectorSession<'a> {
+impl<'model> HandDetectorSession<'model> {
     // todo: usage the timestamp
     #[allow(unused)]
     #[inline(always)]

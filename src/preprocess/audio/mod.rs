@@ -44,14 +44,17 @@ pub trait AudioData {
     ) -> Result<Option<(usize, usize)>, Error>;
 }
 
-impl<'model, T> InToTensorsIterator<'model> for T
+impl<'tensor, 'input: 'tensor, T> InToTensorsIterator<'tensor> for T
 where
-    T: AudioData + 'model,
+    T: AudioData + 'input,
 {
-    type Iter = AudioDataToTensorIter<'model, T>;
+    type Iter = AudioDataToTensorIter<'tensor, T>;
 
     #[inline(always)]
-    fn into_tensors_iter(self, to_tensor_info: &'model ToTensorInfo) -> Result<Self::Iter, Error> {
+    fn into_tensors_iter<'model: 'tensor>(
+        self,
+        to_tensor_info: &'model ToTensorInfo,
+    ) -> Result<Self::Iter, Error> {
         let audio_to_tensor_info = to_tensor_info.try_to_audio()?;
         AudioDataToTensorIter::new(audio_to_tensor_info, self)
     }

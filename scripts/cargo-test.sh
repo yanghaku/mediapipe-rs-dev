@@ -15,6 +15,8 @@ cargo test --release -- --nocapture
 
 # ffmpeg features
 # 1. audio
-cargo test --test audio_classification --release --no-default-features --features="ffmpeg" -- --nocapture
+cargo test --test audio_classification --release --no-default-features --features="audio,ffmpeg" -- --nocapture
+# 2. video
+cargo test --test ffmpeg_video_input --release --no-default-features --features="vision,ffmpeg" -- --nocapture
 
 popd

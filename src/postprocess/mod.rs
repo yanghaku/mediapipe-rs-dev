@@ -14,35 +14,38 @@ pub(crate) use processing::*;
 pub mod utils;
 
 /// Used for stream data results, such video, audio.
-pub struct ResultsIter<TaskSession, ToTensorIterator>
+pub struct ResultsIter<'session, 'tensor, TaskSession, ToTensorIterator>
 where
-    TaskSession: crate::tasks::TaskSession,
-    ToTensorIterator: crate::preprocess::TensorsIterator,
+    TaskSession: crate::tasks::TaskSession + 'session,
+    ToTensorIterator: crate::preprocess::TensorsIterator + 'tensor,
 {
     input_tensors_iter: ToTensorIterator,
-    _marker: std::marker::PhantomData<TaskSession>,
+    session: &'session mut TaskSession,
+    _marker: std::marker::PhantomData<&'tensor ()>,
 }
 
-impl<TaskSession, ToTensorIterator> ResultsIter<TaskSession, ToTensorIterator>
+impl<'session, 'tensor, TaskSession, ToTensorIterator>
+    ResultsIter<'session, 'tensor, TaskSession, ToTensorIterator>
 where
-    TaskSession: crate::tasks::TaskSession,
-    ToTensorIterator: crate::preprocess::TensorsIterator,
+    TaskSession: crate::tasks::TaskSession + 'session,
+    ToTensorIterator: crate::preprocess::TensorsIterator + 'tensor,
 {
     #[inline(always)]
-    pub(crate) fn new(input_tensors_iter: ToTensorIterator) -> Self {
+    pub(crate) fn new(
+        session: &'session mut TaskSession,
+        input_tensors_iter: ToTensorIterator,
+    ) -> Self {
         Self {
             input_tensors_iter,
+            session,
             _marker: Default::default(),
         }
     }
 
     /// poll next result
     #[inline(always)]
-    pub fn next(
-        &mut self,
-        session: &mut TaskSession,
-    ) -> Result<Option<TaskSession::Result>, crate::Error> {
-        session.process_next(&mut self.input_tensors_iter)
+    pub fn next(&mut self) -> Result<Option<TaskSession::Result>, crate::Error> {
+        self.session.process_next(&mut self.input_tensors_iter)
     }
 
     /// poll all results
@@ -56,12 +59,9 @@ where
 
     /// poll all results and save to [`Vec`]
     #[inline(always)]
-    pub fn to_vec(
-        mut self,
-        session: &mut TaskSession,
-    ) -> Result<Vec<TaskSession::Result>, crate::Error> {
+    pub fn to_vec(mut self) -> Result<Vec<TaskSession::Result>, crate::Error> {
         let mut ans = Vec::new();
-        while let Some(r) = self.next(session)? {
+        while let Some(r) = self.next()? {
             ans.push(r);
         }
         Ok(ans)

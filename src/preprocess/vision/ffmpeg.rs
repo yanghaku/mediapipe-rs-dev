@@ -3,10 +3,13 @@ use common::ffmpeg_input::FFMpegInput;
 
 pub type FFMpegVideoData = FFMpegInput<ffmpeg_next::decoder::Video, ffmpeg_next::frame::Video>;
 
-impl<'model> InToTensorsIterator<'model> for FFMpegVideoData {
-    type Iter = FFMpegVideoToTensorIter<'model>;
+impl<'tensor> InToTensorsIterator<'tensor> for FFMpegVideoData {
+    type Iter = FFMpegVideoToTensorIter<'tensor>;
 
-    fn into_tensors_iter(self, to_tensor_info: &'model ToTensorInfo) -> Result<Self::Iter, Error> {
+    fn into_tensors_iter<'model: 'tensor>(
+        self,
+        to_tensor_info: &'model ToTensorInfo,
+    ) -> Result<Self::Iter, Error> {
         let image_to_tensor_info = to_tensor_info.try_to_image()?;
         let target_format = match image_to_tensor_info.color_space {
             ImageColorSpaceType::RGB | ImageColorSpaceType::UNKNOWN => {

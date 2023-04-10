@@ -67,56 +67,45 @@ impl AudioClassifier {
 
     /// Classify audio stream, and collect all results to [`Vec`]
     #[inline(always)]
-    pub fn classify<'a>(
-        &'a self,
-        input_stream: impl InToTensorsIterator<'a>,
+    pub fn classify<'model: 'tensor, 'tensor>(
+        &'model self,
+        input_stream: impl InToTensorsIterator<'tensor>,
     ) -> Result<Vec<ClassificationResult>, Error> {
-        let iter = self.classify_results_iter(input_stream)?;
-        let mut session = self.new_session()?;
-        iter.to_vec(&mut session)
-    }
-
-    /// Return a iterator for results, process input stream when poll next result.
-    #[inline(always)]
-    pub fn classify_results_iter<'a, T>(
-        &'a self,
-        input_stream: T,
-    ) -> Result<ResultsIter<AudioClassifierSession<'_>, T::Iter>, Error>
-    where
-        T: InToTensorsIterator<'a>,
-    {
-        let to_tensor_info =
-            model_resource_check_and_get_impl!(self.model_resource, to_tensor_info, 0);
-        let input_tensors_iter = input_stream.into_tensors_iter(to_tensor_info)?;
-        Ok(ResultsIter::new(input_tensors_iter))
+        self.new_session()?.classify(input_stream)?.to_vec()
     }
 }
 
 /// Session to run inference.
-pub struct AudioClassifierSession<'a> {
-    classifier: &'a AudioClassifier,
-    execution_ctx: GraphExecutionContext<'a>,
-    tensors_to_classification: TensorsToClassification<'a>,
+pub struct AudioClassifierSession<'model> {
+    classifier: &'model AudioClassifier,
+    execution_ctx: GraphExecutionContext<'model>,
+    tensors_to_classification: TensorsToClassification<'model>,
 
     // only one input and one output
-    input_tensor_shape: &'a [usize],
+    input_tensor_shape: &'model [usize],
     input_buffer: Vec<u8>,
 }
 
-impl<'a> AudioClassifierSession<'a> {
-    /// Classify audio stream use this session, and collect all results to [`Vec`]
+impl<'model> AudioClassifierSession<'model> {
+    /// Classify audio stream use this session.
+    /// Return a iterator for results, process input stream when poll next result.
     #[inline(always)]
-    pub fn classify(
-        &'a mut self,
-        input_stream: impl InToTensorsIterator<'a>,
-    ) -> Result<Vec<ClassificationResult>, Error> {
-        self.classifier
-            .classify_results_iter(input_stream)?
-            .to_vec(self)
+    pub fn classify<'session, 'tensor, T>(
+        &'session mut self,
+        input_stream: T,
+    ) -> Result<ResultsIter<'session, 'tensor, Self, T::Iter>, Error>
+    where
+        T: InToTensorsIterator<'tensor>,
+        'model: 'tensor,
+    {
+        let to_tensor_info =
+            model_resource_check_and_get_impl!(self.classifier.model_resource, to_tensor_info, 0);
+        let input_tensors_iter = input_stream.into_tensors_iter(to_tensor_info)?;
+        Ok(ResultsIter::new(self, input_tensors_iter))
     }
 }
 
-impl<'a> TaskSession for AudioClassifierSession<'a> {
+impl<'model> TaskSession for AudioClassifierSession<'model> {
     type Result = ClassificationResult;
 
     #[inline]

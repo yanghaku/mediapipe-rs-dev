@@ -21,10 +21,13 @@ pub trait Tensor {
 }
 
 /// Every media such as Video, Audio, can implement this trait and be used as model input
-pub trait InToTensorsIterator<'model> {
-    type Iter: TensorsIterator + 'model;
+pub trait InToTensorsIterator<'tensor> {
+    type Iter: TensorsIterator + 'tensor;
 
-    fn into_tensors_iter(self, to_tensor_info: &'model ToTensorInfo) -> Result<Self::Iter, Error>;
+    fn into_tensors_iter<'model: 'tensor>(
+        self,
+        to_tensor_info: &'model ToTensorInfo,
+    ) -> Result<Self::Iter, Error>;
 }
 
 /// Used for stream data, such video, audio.

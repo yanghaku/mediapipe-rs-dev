@@ -71,30 +71,15 @@ impl ImageClassifier {
         self.new_session()?.classify(input)
     }
 
-    /// Classify input video stream, and collect all results to [`Vec`]
+    /// Classify audio stream, and collect all results to [`Vec`]
     #[inline(always)]
-    pub fn classify_for_video<'a>(
-        &'a self,
-        input_stream: impl InToTensorsIterator<'a>,
+    pub fn classify_for_video<'model: 'tensor, 'tensor>(
+        &'model self,
+        input_stream: impl InToTensorsIterator<'tensor>,
     ) -> Result<Vec<ClassificationResult>, Error> {
-        let iter = self.classify_results_iter(input_stream)?;
-        let mut session = self.new_session()?;
-        iter.to_vec(&mut session)
-    }
-
-    /// Return a iterator for results, process input stream when poll next result.
-    #[inline(always)]
-    pub fn classify_results_iter<'a, T>(
-        &'a self,
-        input_stream: T,
-    ) -> Result<ResultsIter<ImageClassifierSession<'_>, T::Iter>, Error>
-    where
-        T: InToTensorsIterator<'a>,
-    {
-        let to_tensor_info =
-            model_resource_check_and_get_impl!(self.model_resource, to_tensor_info, 0);
-        let input_tensors_iter = input_stream.into_tensors_iter(to_tensor_info)?;
-        Ok(ResultsIter::new(input_tensors_iter))
+        self.new_session()?
+            .classify_for_video(input_stream)?
+            .to_vec()
     }
 }
 
@@ -109,17 +94,17 @@ impl ImageClassifier {
 ///     session.classify(image)?;
 /// }
 /// ```
-pub struct ImageClassifierSession<'a> {
-    classifier: &'a ImageClassifier,
-    execution_ctx: GraphExecutionContext<'a>,
-    tensors_to_classification: TensorsToClassification<'a>,
+pub struct ImageClassifierSession<'model> {
+    classifier: &'model ImageClassifier,
+    execution_ctx: GraphExecutionContext<'model>,
+    tensors_to_classification: TensorsToClassification<'model>,
 
     // only one input and one output
-    input_tensor_shape: &'a [usize],
+    input_tensor_shape: &'model [usize],
     input_tensor_buf: Vec<u8>,
 }
 
-impl<'a> ImageClassifierSession<'a> {
+impl<'model> ImageClassifierSession<'model> {
     #[inline(always)]
     fn compute(&mut self, timestamp_ms: Option<u64>) -> Result<ClassificationResult, Error> {
         self.execution_ctx.set_input(
@@ -153,19 +138,25 @@ impl<'a> ImageClassifierSession<'a> {
         self.compute(None)
     }
 
-    /// Classify input video stream use this session, and collect all results to [`Vec`]
+    /// Classify input video stream use this session.
+    /// Return a iterator for results, process input stream when poll next result.
     #[inline(always)]
-    pub fn classify_for_video(
-        &'a mut self,
-        input_stream: impl InToTensorsIterator<'a>,
-    ) -> Result<Vec<ClassificationResult>, Error> {
-        self.classifier
-            .classify_results_iter(input_stream)?
-            .to_vec(self)
+    pub fn classify_for_video<'session, 'tensor, T>(
+        &'session mut self,
+        input_stream: T,
+    ) -> Result<ResultsIter<'session, 'tensor, Self, T::Iter>, Error>
+    where
+        T: InToTensorsIterator<'tensor>,
+        'model: 'tensor,
+    {
+        let to_tensor_info =
+            model_resource_check_and_get_impl!(self.classifier.model_resource, to_tensor_info, 0);
+        let input_tensors_iter = input_stream.into_tensors_iter(to_tensor_info)?;
+        Ok(ResultsIter::new(self, input_tensors_iter))
     }
 }
 
-impl<'a> TaskSession for ImageClassifierSession<'a> {
+impl<'model> TaskSession for ImageClassifierSession<'model> {
     type Result = ClassificationResult;
 
     #[inline]

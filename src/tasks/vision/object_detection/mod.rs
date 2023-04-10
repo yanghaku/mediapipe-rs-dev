@@ -42,14 +42,14 @@ impl ObjectDetector {
             labels.0,
             labels.1,
         );
-        let tensors_to_detection = TensorsToDetection::new(
+        let mut tensors_to_detection = TensorsToDetection::new(
             categories_filter,
             self.build_options.classification_options.max_results,
-            &self.bound_box_properties,
             get_type_and_quantization!(self, self.location_buf_index),
             get_type_and_quantization!(self, self.categories_buf_index),
             get_type_and_quantization!(self, self.score_buf_index),
         );
+        tensors_to_detection.set_box_indices(&self.bound_box_properties);
 
         let execution_ctx = self.graph.init_execution_context()?;
         Ok(ObjectDetectorSession {
@@ -74,17 +74,17 @@ impl ObjectDetector {
 ///     session.detect(image)?;
 /// }
 /// ```
-pub struct ObjectDetectorSession<'a> {
-    detector: &'a ObjectDetector,
-    execution_ctx: GraphExecutionContext<'a>,
-    tensors_to_detection: TensorsToDetection<'a>,
+pub struct ObjectDetectorSession<'model> {
+    detector: &'model ObjectDetector,
+    execution_ctx: GraphExecutionContext<'model>,
+    tensors_to_detection: TensorsToDetection<'model>,
 
     num_box_buf: [f32; 1],
-    input_tensor_shape: &'a [usize],
+    input_tensor_shape: &'model [usize],
     input_buffer: Vec<u8>,
 }
 
-impl<'a> ObjectDetectorSession<'a> {
+impl<'model> ObjectDetectorSession<'model> {
     // todo: usage the timestamp
     #[allow(unused)]
     #[inline(always)]
