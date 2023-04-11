@@ -1,113 +1,164 @@
 use super::*;
-use common::ffmpeg_input::FFMpegInput;
+use std::cell::RefCell;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 
-pub type FFMpegVideoData = FFMpegInput<ffmpeg_next::decoder::Video, ffmpeg_next::frame::Video>;
+type FFMpegVideoInput =
+    common::ffmpeg_input::FFMpegInput<ffmpeg_next::decoder::Video, ffmpeg_next::frame::Video>;
 
-impl<'tensor> InToTensorsIterator<'tensor> for FFMpegVideoData {
-    type Iter = FFMpegVideoToTensorIter<'tensor>;
+pub struct FFMpegVideoData {
+    source: FFMpegVideoInput,
+    convert_to_ms: f64,
 
-    fn into_tensors_iter<'model: 'tensor>(
-        self,
-        to_tensor_info: &'model ToTensorInfo,
-    ) -> Result<Self::Iter, Error> {
-        let image_to_tensor_info = to_tensor_info.try_to_image()?;
-        let target_format = match image_to_tensor_info.color_space {
-            ImageColorSpaceType::RGB | ImageColorSpaceType::UNKNOWN => {
-                ffmpeg_next::format::Pixel::RGB24
-            }
-            ImageColorSpaceType::GRAYSCALE => ffmpeg_next::format::Pixel::GRAY8,
-        };
-        let scale = if self.decoder.format() != target_format
-            || self.decoder.width() != image_to_tensor_info.width
-            || self.decoder.height() != image_to_tensor_info.height
-        {
-            Some((
-                ffmpeg_next::software::scaling::Context::get(
-                    self.decoder.format(),
-                    self.decoder.width(),
-                    self.decoder.height(),
-                    target_format,
-                    image_to_tensor_info.width,
-                    image_to_tensor_info.height,
-                    ffmpeg_next::software::scaling::Flags::BITEXACT
-                        | ffmpeg_next::software::scaling::Flags::SPLINE,
-                )?,
-                ffmpeg_next::frame::Video::empty(),
-            ))
-        } else {
-            None
-        };
-        let convert_to_ms = self.decoder.time_base().numerator() as f64
-            / self.decoder.time_base().denominator() as f64
+    // mutable caches
+    scales: RefCell<HashMap<ScaleKey, ffmpeg_next::software::scaling::Context>>,
+    scale_frame_buffer: RefCell<ffmpeg_next::frame::Video>,
+}
+
+impl FFMpegVideoData {
+    #[inline(always)]
+    pub fn new(input: ffmpeg_next::format::context::Input) -> Result<Self, Error> {
+        let source = FFMpegVideoInput::new(input)?;
+        let convert_to_ms = source.decoder.time_base().numerator() as f64
+            / source.decoder.time_base().denominator() as f64
             * 1000.;
-        Ok(Self::Iter {
-            image_to_tensor_info,
-            source: self,
-            scale,
+        Ok(Self {
+            source,
             convert_to_ms,
+            scales: RefCell::new(Default::default()),
+            scale_frame_buffer: RefCell::new(ffmpeg_next::frame::Video::empty()),
         })
     }
 }
 
-#[doc(hidden)]
-pub struct FFMpegVideoToTensorIter<'a> {
-    image_to_tensor_info: &'a ImageToTensorInfo,
-    source: FFMpegVideoData,
-    scale: Option<(
-        ffmpeg_next::software::scaling::Context,
-        ffmpeg_next::frame::Video,
-    )>,
-    convert_to_ms: f64,
-}
+impl VideoData for FFMpegVideoData {
+    type Frame<'frame> = FFMpegFrame<'frame>;
 
-impl<'a> TensorsIterator for FFMpegVideoToTensorIter<'a> {
-    fn next_tensors(
-        &mut self,
-        output_buffers: &mut [impl AsMut<[u8]>],
-    ) -> Result<Option<u64>, Error> {
-        let output_buffer = if output_buffers.as_mut().len() != 1 {
-            return Err(Error::ArgumentError(format!(
-                "Expect output buffer's shape is `1`, but got `{}`",
-                output_buffers.as_mut().len()
-            )));
-        } else {
-            output_buffers.as_mut().get_mut(0).unwrap()
-        };
-
+    #[inline(always)]
+    fn next_frame(&mut self) -> Result<Option<Self::Frame<'_>>, Error> {
         if !self.source.receive_frame()? {
             return Ok(None);
         }
-        let frame = if self.scale.is_some() {
-            let (scale, out_frame) = self.scale.as_mut().unwrap();
-            // scale frame
-            scale.run(&self.source.frame, out_frame)?;
-            out_frame
-        } else {
-            &self.source.frame
-        };
+        Ok(Some(FFMpegFrame(self)))
+    }
+}
 
-        match self.image_to_tensor_info.color_space {
+pub struct FFMpegFrame<'a>(&'a mut FFMpegVideoData);
+
+impl<'a> ImageToTensor for FFMpegFrame<'a> {
+    fn to_tensor<T: AsMut<[u8]>>(
+        &self,
+        to_tensor_info: &ImageToTensorInfo,
+        output_buffer: &mut T,
+    ) -> Result<(), Error> {
+        let scale_key = ScaleKey {
+            src_w: self.0.source.frame.width(),
+            src_h: self.0.source.frame.height(),
+            dst_w: to_tensor_info.width,
+            dst_h: to_tensor_info.height,
+            dst_format: to_tensor_info.color_space,
+        };
+        let src_format = self.0.source.frame.format();
+        let mut scales_cache = self.0.scales.borrow_mut();
+        let mut scale_frame_buffer = self.0.scale_frame_buffer.borrow_mut();
+
+        let frame =
+            if let Some(scale_ctx) = cached_scale_ctx(&mut scales_cache, src_format, scale_key) {
+                // scale frame
+                scale_ctx.run(&self.0.source.frame, &mut scale_frame_buffer)?;
+                &*scale_frame_buffer
+            } else {
+                &self.0.source.frame
+            };
+
+        match to_tensor_info.color_space {
             ImageColorSpaceType::RGB | ImageColorSpaceType::UNKNOWN => {
                 let data = frame.data(0);
                 let img = image::ImageBuffer::<image::Rgb<u8>, &[u8]>::from_raw(
-                    self.image_to_tensor_info.width,
-                    self.image_to_tensor_info.height,
+                    to_tensor_info.width,
+                    to_tensor_info.height,
                     data,
                 )
                 .unwrap();
-                image::rgb8_image_buffer_to_tensor(&img, self.image_to_tensor_info, output_buffer)?;
+                image::rgb8_image_buffer_to_tensor(&img, to_tensor_info, output_buffer)?;
             }
             ImageColorSpaceType::GRAYSCALE => {
                 todo!("gray image")
             }
         }
 
-        Ok(Some(
-            self.source
-                .frame
-                .pts()
-                .map(|t| (t as f64 * self.convert_to_ms) as u64)
-                .unwrap_or(0) as u64,
-        ))
+        Ok(())
     }
+
+    /// return image size: (weight, height)
+    fn image_size(&self) -> (u32, u32) {
+        (
+            self.0.source.decoder.width(),
+            self.0.source.decoder.height(),
+        )
+    }
+
+    /// return the current timestamp (ms)
+    fn time_stamp_ms(&self) -> Option<u64> {
+        self.0
+            .source
+            .frame
+            .timestamp()
+            .map(|t| (t as f64 * self.0.convert_to_ms) as u64)
+    }
+}
+
+#[derive(Hash, Eq, PartialEq)]
+struct ScaleKey {
+    src_w: u32,
+    src_h: u32,
+    dst_w: u32,
+    dst_h: u32,
+    dst_format: ImageColorSpaceType,
+}
+
+// get cached scale context
+fn cached_scale_ctx(
+    scales: &mut HashMap<ScaleKey, ffmpeg_next::software::scaling::Context>,
+    src_format: ffmpeg_next::format::Pixel,
+    key: ScaleKey,
+) -> Option<&mut ffmpeg_next::software::scaling::Context> {
+    // do not need to scale
+    if key.src_w == key.dst_w
+        && key.src_h == key.dst_h
+        && match key.dst_format {
+            ImageColorSpaceType::RGB | ImageColorSpaceType::UNKNOWN => {
+                src_format == ffmpeg_next::format::Pixel::RGB24
+            }
+            ImageColorSpaceType::GRAYSCALE => src_format == ffmpeg_next::format::Pixel::GRAY8,
+        }
+    {
+        return None;
+    }
+
+    Some(match scales.entry(key) {
+        Entry::Occupied(s) => s.into_mut(),
+        Entry::Vacant(v) => {
+            // new scale context
+            let key = v.key();
+            let dst_format = match key.dst_format {
+                ImageColorSpaceType::RGB | ImageColorSpaceType::UNKNOWN => {
+                    ffmpeg_next::format::Pixel::RGB24
+                }
+                ImageColorSpaceType::GRAYSCALE => ffmpeg_next::format::Pixel::GRAY8,
+            };
+            let scale = ffmpeg_next::software::scaling::Context::get(
+                src_format,
+                key.src_w,
+                key.src_h,
+                dst_format,
+                key.dst_w,
+                key.dst_h,
+                ffmpeg_next::software::scaling::Flags::BITEXACT
+                    | ffmpeg_next::software::scaling::Flags::SPLINE,
+            )
+            .unwrap();
+            v.insert(scale)
+        }
+    })
 }

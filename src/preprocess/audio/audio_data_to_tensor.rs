@@ -1,13 +1,12 @@
 use super::*;
 use std::collections::VecDeque;
 
-impl<'a, Source: AudioData> TensorsIterator for AudioDataToTensorIter<'a, Source> {
-    fn next_tensors(
+impl<'a, Source: AudioData> AudioDataToTensorIter<'a, Source> {
+    pub(crate) fn poll_next_tensors<T: AsMut<[E]>, E: AsMut<[u8]>>(
         &mut self,
-        output_buffers: &mut [impl AsMut<[u8]>],
+        output_buffers: &mut T,
     ) -> Result<Option<u64>, Error> {
         // todo: num_overlapping_samples, fft if need
-
         let time_stamp_ms = self.processed_time_stamp_ms;
         while self.process_buffer.len() == 0
             || self.process_buffer[0].len() < self.audio_to_tensor_info.num_samples
@@ -38,10 +37,11 @@ impl<'a, Source: AudioData> TensorsIterator for AudioDataToTensorIter<'a, Source
         self.output_to_tensor(&mut output_buffers.as_mut()[0]);
         Ok(Some(time_stamp_ms))
     }
-}
 
-impl<'a, Source: AudioData> AudioDataToTensorIter<'a, Source> {
-    pub fn new(audio_to_tensor_info: &'a AudioToTensorInfo, source: Source) -> Result<Self, Error> {
+    pub(crate) fn new(
+        audio_to_tensor_info: &'a AudioToTensorInfo,
+        source: Source,
+    ) -> Result<Self, Error> {
         match audio_to_tensor_info.tensor_type {
             // reference: https://github.com/google/mediapipe/blob/master/mediapipe/tasks/cc/audio/utils/audio_tensor_specs.cc
             TensorType::F16 | TensorType::F32 => {}

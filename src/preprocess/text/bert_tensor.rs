@@ -10,45 +10,45 @@ lazy_static::lazy_static! {
     static ref INCLUDE_DELIM_REGEX: Regex = Regex::new(r"(([!-/]|[:-@]|[\[-`]|[{-~]|[\p{P}]|[\x{4E00}-\x{9FFF}]|[\x{3400}-\x{4DBF}]|[\x{20000}-\x{2A6DF}]|[\x{2A700}-\x{2B73F}]|[\x{2B740}-\x{2B81F}]|[\x{2B820}-\x{2CEAF}]|[\x{F900}-\x{FAFF}]|[\x{2F800}-\x{2FA1F}]))").unwrap();
 }
 
-pub(super) fn to_bert_tensors(
+pub(super) fn to_bert_tensors<T: AsMut<[E]>, E: AsMut<[u8]>>(
     s: &str,
     token_index_map: &HashMap<Cow<str>, i32>,
-    output_buffers: &mut [impl AsMut<[u8]>],
+    output_buffers: &mut T,
     max_seq_len: u32,
     classifier_token_id: i32,
     separator_token_id: i32,
 ) -> Result<(), Error> {
     // check outputs
-    if output_buffers.len() != 3 {
+    if output_buffers.as_mut().len() != 3 {
         return Err(Error::ModelInconsistentError(format!(
             "Bert model input must be `3` tensors, but got `{}`",
-            output_buffers.len()
+            output_buffers.as_mut().len()
         )));
     }
     let indices_size = max_seq_len as usize;
     let min_bytes = indices_size * std::mem::size_of::<i32>();
     for i in 0..3 {
-        if output_buffers[i].as_mut().len() < min_bytes {
+        if output_buffers.as_mut()[i].as_mut().len() < min_bytes {
             return Err(Error::ModelInconsistentError(format!(
                 "Expect input buffer `{}` at least `{}` bytes, but got `{}`",
                 i,
                 min_bytes,
-                output_buffers[i].as_mut().len()
+                output_buffers.as_mut()[i].as_mut().len()
             )));
         }
     }
     // get buffer
     let input_ids = unsafe {
         core::slice::from_raw_parts_mut(
-            output_buffers[0].as_mut().as_mut_ptr() as *mut i32,
+            output_buffers.as_mut()[0].as_mut().as_mut_ptr() as *mut i32,
             indices_size,
         )
     };
-    let segment_ids = &mut output_buffers[1].as_mut()[..min_bytes];
+    let segment_ids = &mut output_buffers.as_mut()[1].as_mut()[..min_bytes];
     segment_ids.fill(0);
     let input_masks = unsafe {
         core::slice::from_raw_parts_mut(
-            output_buffers[2].as_mut().as_mut_ptr() as *mut i32,
+            output_buffers.as_mut()[2].as_mut().as_mut_ptr() as *mut i32,
             indices_size,
         )
     };

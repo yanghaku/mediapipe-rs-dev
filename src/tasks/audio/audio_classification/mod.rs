@@ -3,10 +3,9 @@ pub use builder::AudioClassifierBuilder;
 
 use crate::model::ModelResourceTrait;
 use crate::postprocess::{
-    CategoriesFilter, ClassificationResult, ResultsIter, TensorsToClassification,
+    AudioResultsIter, CategoriesFilter, ClassificationResult, TensorsToClassification,
 };
-use crate::preprocess::{InToTensorsIterator, TensorsIterator};
-use crate::tasks::TaskSession;
+use crate::preprocess::audio::{AudioData, AudioDataToTensorIter, AudioToTensorInfo};
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
 /// Performs classification on audio.
@@ -24,6 +23,9 @@ impl AudioClassifier {
 
     #[inline(always)]
     pub fn new_session(&self) -> Result<AudioClassifierSession, Error> {
+        let input_to_tensor_info =
+            model_resource_check_and_get_impl!(self.model_resource, to_tensor_info, 0)
+                .try_to_audio()?;
         let input_tensor_shape =
             model_resource_check_and_get_impl!(self.model_resource, input_tensor_shape, 0);
         let output_byte_size =
@@ -60,6 +62,7 @@ impl AudioClassifier {
             classifier: self,
             execution_ctx,
             tensors_to_classification,
+            input_to_tensor_info,
             input_tensor_shape,
             input_buffer: vec![0; tensor_bytes!(self.input_tensor_type, input_tensor_shape)],
         })
@@ -67,9 +70,9 @@ impl AudioClassifier {
 
     /// Classify audio stream, and collect all results to [`Vec`]
     #[inline(always)]
-    pub fn classify<'model: 'tensor, 'tensor>(
-        &'model self,
-        input_stream: impl InToTensorsIterator<'tensor>,
+    pub fn classify(
+        &self,
+        input_stream: impl AudioData,
     ) -> Result<Vec<ClassificationResult>, Error> {
         self.new_session()?.classify(input_stream)?.to_vec()
     }
@@ -82,6 +85,7 @@ pub struct AudioClassifierSession<'model> {
     tensors_to_classification: TensorsToClassification<'model>,
 
     // only one input and one output
+    input_to_tensor_info: &'model AudioToTensorInfo,
     input_tensor_shape: &'model [usize],
     input_buffer: Vec<u8>,
 }
@@ -90,32 +94,24 @@ impl<'model> AudioClassifierSession<'model> {
     /// Classify audio stream use this session.
     /// Return a iterator for results, process input stream when poll next result.
     #[inline(always)]
-    pub fn classify<'session, 'tensor, T>(
-        &'session mut self,
-        input_stream: T,
-    ) -> Result<ResultsIter<'session, 'tensor, Self, T::Iter>, Error>
+    pub fn classify<T>(&mut self, input_stream: T) -> Result<AudioResultsIter<Self, T>, Error>
     where
-        T: InToTensorsIterator<'tensor>,
-        'model: 'tensor,
+        T: AudioData,
     {
-        let to_tensor_info =
-            model_resource_check_and_get_impl!(self.classifier.model_resource, to_tensor_info, 0);
-        let input_tensors_iter = input_stream.into_tensors_iter(to_tensor_info)?;
-        Ok(ResultsIter::new(self, input_tensors_iter))
+        let audio_data = AudioDataToTensorIter::new(self.input_to_tensor_info, input_stream)?;
+        Ok(AudioResultsIter::new(self, audio_data))
     }
 }
 
-impl<'model> TaskSession for AudioClassifierSession<'model> {
+impl<'model> super::TaskSession for AudioClassifierSession<'model> {
     type Result = ClassificationResult;
 
     #[inline]
-    fn process_next<TensorsIter: TensorsIterator>(
+    fn process_next<Source: AudioData>(
         &mut self,
-        input_tensors_iter: &mut TensorsIter,
+        input_stream: &mut AudioDataToTensorIter<Source>,
     ) -> Result<Option<Self::Result>, Error> {
-        if let Some(timestamp_ms) =
-            input_tensors_iter.next_tensors(&mut [&mut self.input_buffer])?
-        {
+        if let Some(timestamp_ms) = input_stream.poll_next_tensors(&mut [&mut self.input_buffer])? {
             self.execution_ctx.set_input(
                 0,
                 self.classifier.input_tensor_type,

@@ -6,7 +6,16 @@ use regex::Regex;
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-/// Necessary information for the text to tensor.
+/// Text model input
+pub trait TextToTensors {
+    fn to_tensors<T: AsMut<[E]>, E: AsMut<[u8]>>(
+        &self,
+        to_tensor_info: &TextToTensorInfo,
+        output_buffers: &mut T,
+    ) -> Result<(), Error>;
+}
+
+/// Necessary information for the text to tensors.
 #[derive(Debug)]
 pub enum TextToTensorInfo<'buf> {
     /// A BERT-based model.
@@ -104,13 +113,13 @@ impl<'buf> TextToTensorInfo<'buf> {
     }
 }
 
-impl Tensor for &str {
-    fn to_tensors(
+impl TextToTensors for &str {
+    fn to_tensors<T: AsMut<[E]>, E: AsMut<[u8]>>(
         &self,
-        to_tensor_info: &ToTensorInfo,
-        output_buffers: &mut [impl AsMut<[u8]>],
+        to_tensor_info: &TextToTensorInfo,
+        output_buffers: &mut T,
     ) -> Result<(), Error> {
-        match to_tensor_info.try_to_text()? {
+        match to_tensor_info {
             TextToTensorInfo::BertModel {
                 max_seq_len,
                 token_index_map,
@@ -118,7 +127,7 @@ impl Tensor for &str {
                 separator_token_id,
                 ..
             } => {
-                debug_assert_eq!(output_buffers.len(), 3);
+                debug_assert_eq!(output_buffers.as_mut().len(), 3);
                 return bert_tensor::to_bert_tensors(
                     self,
                     token_index_map,
@@ -136,12 +145,12 @@ impl Tensor for &str {
                 pad_id,
                 ..
             } => {
-                debug_assert_eq!(output_buffers.len(), 1);
+                debug_assert_eq!(output_buffers.as_mut().len(), 1);
                 return regex_to_tensor::regex_to_tensors(
                     self,
                     delim_regex,
                     token_index_map,
-                    &mut output_buffers[0],
+                    &mut output_buffers.as_mut()[0],
                     *max_seq_len,
                     *unknown_id,
                     *pad_id,
@@ -154,23 +163,23 @@ impl Tensor for &str {
     }
 }
 
-impl Tensor for String {
+impl TextToTensors for String {
     #[inline(always)]
-    fn to_tensors(
+    fn to_tensors<T: AsMut<[E]>, E: AsMut<[u8]>>(
         &self,
-        to_tensor_info: &ToTensorInfo,
-        output_buffers: &mut [impl AsMut<[u8]>],
+        to_tensor_info: &TextToTensorInfo,
+        output_buffers: &mut T,
     ) -> Result<(), Error> {
         self.as_str().to_tensors(to_tensor_info, output_buffers)
     }
 }
 
-impl<'a> Tensor for Cow<'a, str> {
+impl<'a> TextToTensors for Cow<'a, str> {
     #[inline(always)]
-    fn to_tensors(
+    fn to_tensors<T: AsMut<[E]>, E: AsMut<[u8]>>(
         &self,
-        to_tensor_info: &ToTensorInfo,
-        output_buffers: &mut [impl AsMut<[u8]>],
+        to_tensor_info: &TextToTensorInfo,
+        output_buffers: &mut T,
     ) -> Result<(), Error> {
         match self {
             Cow::Borrowed(s) => (*s).to_tensors(to_tensor_info, output_buffers),

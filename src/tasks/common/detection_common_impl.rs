@@ -6,18 +6,18 @@ macro_rules! detector_impl {
         #[inline(always)]
         pub fn detect(
             &self,
-            input: &impl crate::preprocess::Tensor,
+            input: &impl crate::preprocess::vision::ImageToTensor,
         ) -> Result<$Result, crate::Error> {
             self.new_session()?.detect(input)
         }
 
         /// Detect input video stream, and collect all results to [`Vec`]
         #[inline(always)]
-        pub fn detect_for_video<'model: 'tensor, 'tensor>(
-            &'model self,
-            input_stream: impl crate::preprocess::InToTensorsIterator<'tensor>,
+        pub fn detect_for_video(
+            &self,
+            video_data: impl crate::preprocess::vision::VideoData,
         ) -> Result<Vec<$Result>, crate::Error> {
-            self.new_session()?.detect_for_video(input_stream)?.to_vec()
+            self.new_session()?.detect_for_video(video_data)?.to_vec()
         }
     };
 }
@@ -28,50 +28,39 @@ macro_rules! detector_session_impl {
         #[inline(always)]
         pub fn detect(
             &mut self,
-            input: &impl crate::preprocess::Tensor,
+            input: &impl crate::preprocess::vision::ImageToTensor,
         ) -> Result<$Result, crate::Error> {
-            let to_tensor_info =
-                model_resource_check_and_get_impl!(self.detector.model_resource, to_tensor_info, 0);
-            input.to_tensors(to_tensor_info, &mut [&mut self.input_buffer])?;
-            self.compute(None)
+            input.to_tensor(self.image_to_tensor_info, &mut self.input_buffer)?;
+            self.compute(input.time_stamp_ms())
         }
 
         /// Detect input video stream use this session.
         /// Return a iterator for results, process input stream when poll next result.
         #[inline(always)]
-        pub fn detect_for_video<'session, 'tensor, T>(
-            &'session mut self,
-            input_stream: T,
-        ) -> Result<crate::postprocess::ResultsIter<'session, 'tensor, Self, T::Iter>, crate::Error>
-        where
-            T: crate::preprocess::InToTensorsIterator<'tensor>,
-            'model: 'tensor,
-        {
-            let to_tensor_info =
-                model_resource_check_and_get_impl!(self.detector.model_resource, to_tensor_info, 0);
-            let input_tensors_iter = input_stream.into_tensors_iter(to_tensor_info)?;
-            Ok(crate::postprocess::ResultsIter::new(
-                self,
-                input_tensors_iter,
-            ))
+        pub fn detect_for_video<InputVideoData: crate::preprocess::vision::VideoData>(
+            &mut self,
+            video_data: InputVideoData,
+        ) -> Result<crate::postprocess::VideoResultsIter<Self, InputVideoData>, crate::Error> {
+            Ok(crate::postprocess::VideoResultsIter::new(self, video_data))
         }
     };
 }
 
 macro_rules! detection_task_session_impl {
     ( $SessionName:ident, $Result:ident ) => {
-        impl<'model> crate::tasks::TaskSession for $SessionName<'model> {
+        use crate::preprocess::vision::ImageToTensor;
+
+        impl<'model> super::TaskSession for $SessionName<'model> {
             type Result = $Result;
 
             #[inline]
-            fn process_next<TensorsIter: crate::preprocess::TensorsIterator>(
+            fn process_next(
                 &mut self,
-                input_tensors_iter: &mut TensorsIter,
+                video_data: &mut impl crate::preprocess::vision::VideoData,
             ) -> Result<Option<Self::Result>, crate::Error> {
-                if let Some(timestamp_ms) =
-                    input_tensors_iter.next_tensors(&mut [&mut self.input_buffer])?
-                {
-                    return Ok(Some(self.compute(Some(timestamp_ms))?));
+                if let Some(frame) = video_data.next_frame()? {
+                    frame.to_tensor(self.image_to_tensor_info, &mut self.input_buffer)?;
+                    return Ok(Some(self.compute(frame.time_stamp_ms())?));
                 }
                 Ok(None)
             }

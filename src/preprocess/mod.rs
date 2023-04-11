@@ -11,37 +11,6 @@ pub mod vision;
 
 use crate::Error;
 
-/// Every media such as Image, Text, can implement this trait and be used as model input
-pub trait Tensor {
-    fn to_tensors(
-        &self,
-        to_tensor_info: &ToTensorInfo,
-        output_buffers: &mut [impl AsMut<[u8]>],
-    ) -> Result<(), Error>;
-}
-
-/// Every media such as Video, Audio, can implement this trait and be used as model input
-pub trait InToTensorsIterator<'tensor> {
-    type Iter: TensorsIterator + 'tensor;
-
-    fn into_tensors_iter<'model: 'tensor>(
-        self,
-        to_tensor_info: &'model ToTensorInfo,
-    ) -> Result<Self::Iter, Error>;
-}
-
-/// Used for stream data, such video, audio.
-pub trait TensorsIterator {
-    /// get next tensors save to output_buffers, return timestamp_ms
-    /// if the stream is end, return None
-    fn next_tensors(
-        &mut self,
-        output_buffers: &mut [impl AsMut<[u8]>],
-    ) -> Result<Option<u64>, Error>;
-
-    // todo: async api
-}
-
 #[derive(Debug)]
 enum ToTensorInfoInner<'buf> {
     #[cfg(feature = "audio")]

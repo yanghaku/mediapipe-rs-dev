@@ -15,11 +15,17 @@ pub(crate) struct CategoriesFilter<'a> {
 }
 
 impl<'a> CategoriesFilter<'a> {
-    /// create a empty categories filter, just filter the score threshold.
     #[inline(always)]
-    pub(crate) fn new_empty(score_threshold: f32) -> Self {
+    pub(crate) fn new_full(score_threshold: f32, labels: &'a [u8]) -> Self {
+        let mut vec = Vec::new();
+        let mut label_file = MemoryTextFile::new(labels);
+
+        while let Some(line) = label_file.next_line() {
+            vec.push(Label::Allowed((line, None)));
+        }
+
         Self {
-            labels: Vec::new(),
+            labels: vec,
             score_threshold,
         }
     }
@@ -56,18 +62,23 @@ impl<'a> CategoriesFilter<'a> {
         }
 
         if let Some(labels_locale) = labels_locale {
-            let mut iter = vec.iter_mut();
-            let mut labels_locale_file = MemoryTextFile::new(labels_locale);
-            while let Some(line) = labels_locale_file.next_line() {
-                if let Some(Label::Allowed((_, o))) = iter.next() {
-                    *o = Some(line);
-                }
-            }
+            Self::add_labels_locale(&mut vec, labels_locale);
         }
 
         Self {
             labels: vec,
             score_threshold: option.score_threshold,
+        }
+    }
+
+    #[inline(always)]
+    fn add_labels_locale(labels: &mut Vec<Label<'a>>, labels_locale: &'a [u8]) {
+        let mut iter = labels.iter_mut();
+        let mut labels_locale_file = MemoryTextFile::new(labels_locale);
+        while let Some(line) = labels_locale_file.next_line() {
+            if let Some(Label::Allowed((_, o))) = iter.next() {
+                *o = Some(line);
+            }
         }
     }
 

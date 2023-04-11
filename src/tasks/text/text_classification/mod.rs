@@ -3,7 +3,7 @@ pub use builder::TextClassifierBuilder;
 
 use crate::model::ModelResourceTrait;
 use crate::postprocess::{CategoriesFilter, ClassificationResult, TensorsToClassification};
-use crate::preprocess::Tensor;
+use crate::preprocess::text::{TextToTensorInfo, TextToTensors};
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
 /// Performs classification on text.
@@ -20,6 +20,9 @@ impl TextClassifier {
 
     #[inline(always)]
     pub fn new_session(&self) -> Result<TextClassifierSession, Error> {
+        let input_to_tensor_info =
+            model_resource_check_and_get_impl!(self.model_resource, to_tensor_info, 0)
+                .try_to_text()?;
         let input_count = self.model_resource.input_tensor_count();
         let mut input_tensor_shapes = Vec::with_capacity(input_count);
         let mut input_tensor_bufs = Vec::with_capacity(input_count);
@@ -61,16 +64,16 @@ impl TextClassifier {
         );
 
         Ok(TextClassifierSession {
-            classifier: self,
             execution_ctx,
             tensors_to_classification,
+            input_to_tensor_info,
             input_tensor_shapes,
             input_tensor_bufs,
         })
     }
 
     #[inline(always)]
-    pub fn classify(&self, input: &impl Tensor) -> Result<ClassificationResult, Error> {
+    pub fn classify(&self, input: &impl TextToTensors) -> Result<ClassificationResult, Error> {
         self.new_session()?.classify(input)
     }
 }
@@ -87,24 +90,17 @@ impl TextClassifier {
 /// }
 /// ```
 pub struct TextClassifierSession<'a> {
-    classifier: &'a TextClassifier,
     execution_ctx: GraphExecutionContext<'a>,
     tensors_to_classification: TensorsToClassification<'a>,
 
+    input_to_tensor_info: &'a TextToTensorInfo<'a>,
     input_tensor_shapes: Vec<&'a [usize]>,
     input_tensor_bufs: Vec<Vec<u8>>,
 }
 
 impl<'a> TextClassifierSession<'a> {
-    pub fn classify(&mut self, input: &impl Tensor) -> Result<ClassificationResult, Error> {
-        let to_tensor_info =
-            model_resource_check_and_get_impl!(self.classifier.model_resource, to_tensor_info, 0);
-        let mut input_buffers: Vec<&mut [u8]> = self
-            .input_tensor_bufs
-            .iter_mut()
-            .map(|v| v.as_mut_slice())
-            .collect();
-        input.to_tensors(to_tensor_info, input_buffers.as_mut_slice())?;
+    pub fn classify(&mut self, input: &impl TextToTensors) -> Result<ClassificationResult, Error> {
+        input.to_tensors(self.input_to_tensor_info, &mut self.input_tensor_bufs)?;
 
         for index in 0..self.input_tensor_bufs.len() {
             self.execution_ctx.set_input(

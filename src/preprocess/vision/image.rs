@@ -17,21 +17,19 @@ macro_rules! get_rgb_mean_std_from_info {
     }};
 }
 
-impl Tensor for DynamicImage {
+impl ImageToTensor for DynamicImage {
     #[inline]
-    fn to_tensors(
+    fn to_tensor<T: AsMut<[u8]>>(
         &self,
-        to_tensor_info: &ToTensorInfo,
-        output_buffers: &mut [impl AsMut<[u8]>],
+        info: &ImageToTensorInfo,
+        output_buffer: &mut T,
     ) -> Result<(), Error> {
-        debug_assert_eq!(output_buffers.len(), 1);
-        let info = to_tensor_info.try_to_image()?;
         // need resize
         if info.width != self.width() || info.height != self.height() {
             dynamic_image_into_tensor(
                 self.resize_exact(info.width, info.height, IMAGE_RESIZE_FILTER),
                 info,
-                &mut output_buffers[0],
+                output_buffer,
             )
         } else {
             match info.color_space {
@@ -41,25 +39,28 @@ impl Tensor for DynamicImage {
                 // we treat unknown as rgb8
                 ImageColorSpaceType::RGB | ImageColorSpaceType::UNKNOWN => {
                     if let Some(rgb) = self.as_rgb8() {
-                        rgb8_image_buffer_to_tensor(rgb, info, &mut output_buffers[0])
+                        rgb8_image_buffer_to_tensor(rgb, info, output_buffer)
                     } else {
-                        rgb8_image_buffer_to_tensor(&self.to_rgb8(), info, &mut output_buffers[0])
+                        rgb8_image_buffer_to_tensor(&self.to_rgb8(), info, output_buffer)
                     }
                 }
             }
         }
     }
+
+    /// return image size: (weight, height)
+    fn image_size(&self) -> (u32, u32) {
+        (self.width(), self.height())
+    }
 }
 
-impl Tensor for RgbImage {
+impl ImageToTensor for RgbImage {
     #[inline]
-    fn to_tensors(
+    fn to_tensor<T: AsMut<[u8]>>(
         &self,
-        to_tensor_info: &ToTensorInfo,
-        output_buffers: &mut [impl AsMut<[u8]>],
+        info: &ImageToTensorInfo,
+        output_buffer: &mut T,
     ) -> Result<(), Error> {
-        debug_assert_eq!(output_buffers.len(), 1);
-        let info = to_tensor_info.try_to_image()?;
         if info.width != self.width()
             || info.height != self.height()
             || info.color_space == ImageColorSpaceType::GRAYSCALE
@@ -70,10 +71,15 @@ impl Tensor for RgbImage {
                 dynamic_img =
                     dynamic_img.resize_exact(info.width, info.height, IMAGE_RESIZE_FILTER);
             }
-            return dynamic_image_into_tensor(dynamic_img, info, &mut output_buffers[0]);
+            return dynamic_image_into_tensor(dynamic_img, info, output_buffer);
         }
 
-        rgb8_image_buffer_to_tensor(self, info, &mut output_buffers[0])
+        rgb8_image_buffer_to_tensor(self, info, output_buffer)
+    }
+
+    /// return image size: (weight, height)
+    fn image_size(&self) -> (u32, u32) {
+        (self.width(), self.height())
     }
 }
 

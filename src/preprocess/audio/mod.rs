@@ -14,6 +14,17 @@ mod ffmpeg_data;
 #[cfg(feature = "ffmpeg")]
 pub use ffmpeg_data::FFMpegAudioData;
 
+/// Every Audio data impl the [`AudioData`] can be audio tasks input.
+/// The builtin impl: [`AudioRawData`], [`SymphoniaAudioData`], [`FFMpegAudioData`]
+pub trait AudioData {
+    /// return (sample_rate, num_samples), save the sample in sample_buffer,
+    /// sample data must be range in ```[-1.0,1.0]```.
+    fn next_frame(
+        &mut self,
+        sample_buffer: &mut Vec<Vec<f32>>,
+    ) -> Result<Option<(usize, usize)>, Error>;
+}
+
 /// Necessary information for the audio to tensor.
 #[derive(Debug)]
 pub struct AudioToTensorInfo {
@@ -32,32 +43,6 @@ pub struct AudioToTensorInfo {
 
     /// Expected input tensor type, e.g., tensor_type=TensorType_FLOAT32.
     pub tensor_type: TensorType,
-}
-
-/// Every Audio input impl the [`AudioData`] can use [`AudioDataToTensorIter`] to convert to tensor.
-pub trait AudioData {
-    /// return (sample_rate, num_samples), save the sample in sample_buffer,
-    /// sample data must be range in ```[-1.0,1.0]```.
-    fn next_frame(
-        &mut self,
-        sample_buffer: &mut Vec<Vec<f32>>,
-    ) -> Result<Option<(usize, usize)>, Error>;
-}
-
-impl<'tensor, 'input: 'tensor, T> InToTensorsIterator<'tensor> for T
-where
-    T: AudioData + 'input,
-{
-    type Iter = AudioDataToTensorIter<'tensor, T>;
-
-    #[inline(always)]
-    fn into_tensors_iter<'model: 'tensor>(
-        self,
-        to_tensor_info: &'model ToTensorInfo,
-    ) -> Result<Self::Iter, Error> {
-        let audio_to_tensor_info = to_tensor_info.try_to_audio()?;
-        AudioDataToTensorIter::new(audio_to_tensor_info, self)
-    }
 }
 
 /// Used for Audio To Tensor, such as [`AudioRawData`], [`SymphoniaAudioData`], [`FFMpegAudioData`], etc.

@@ -44,7 +44,9 @@ macro_rules! impl_new_func {
     };
 }
 
+#[cfg(feature = "vision")]
 impl_new_func!(Video, Video, video, Video);
+#[cfg(feature = "audio")]
 impl_new_func!(Audio, Audio, audio, Audio);
 
 impl<Decoder, Frame> FFMpegInput<Decoder, Frame>

@@ -8,6 +8,34 @@ pub use ffmpeg::FFMpegVideoData;
 use super::*;
 use crate::TensorType;
 
+pub trait ImageToTensor {
+    /// convert image to tensors, save to output_buffers
+    fn to_tensor<T: AsMut<[u8]>>(
+        &self,
+        to_tensor_info: &ImageToTensorInfo,
+        output_buffers: &mut T,
+    ) -> Result<(), Error>;
+
+    /// return image size: (weight, height)
+    fn image_size(&self) -> (u32, u32);
+
+    /// return the current timestamp (ms)
+    /// video frame must return a valid timestamp
+    fn time_stamp_ms(&self) -> Option<u64> {
+        return None;
+    }
+}
+
+/// Used for video data.
+/// Now rust stable cannot use [Generic Associated Types](https://rust-lang.github.io/rfcs/1598-generic_associated_types.html)
+pub trait VideoData {
+    type Frame<'frame>: ImageToTensor
+    where
+        Self: 'frame;
+
+    fn next_frame(&mut self) -> Result<Option<Self::Frame<'_>>, Error>;
+}
+
 /// Data layout in memory for image tensor. ```NCHW```, ```NHWC```, ```CHWN```.
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy, Clone)]
 pub enum ImageDataLayout {

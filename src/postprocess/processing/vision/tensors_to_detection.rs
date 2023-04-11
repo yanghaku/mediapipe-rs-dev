@@ -139,15 +139,17 @@ impl Default for ToDetectionOptions {
 pub(crate) struct TensorsToDetection<'a> {
     anchors: Option<&'a Vec<Anchor>>,
     nms: NonMaxSuppression,
+    categories_filter: CategoriesFilter<'a>,
 
     location_buf: OutputBuffer,
     score_buf: OutputBuffer,
-    category_option: Option<(OutputBuffer, CategoriesFilter<'a>)>,
+    categories_buf: Option<OutputBuffer>,
     options: ToDetectionOptions,
 }
 
 impl<'a> TensorsToDetection<'a> {
     pub(crate) fn new_with_anchors(
+        categories_filter: CategoriesFilter<'a>,
         anchors: &'a Vec<Anchor>,
         min_score_threshold: f32,
         max_results: i32,
@@ -158,10 +160,11 @@ impl<'a> TensorsToDetection<'a> {
         options.min_score_threshold = min_score_threshold;
         Self {
             nms: NonMaxSuppression::new(max_results),
+            categories_filter,
             location_buf: empty_output_buffer!(location_buf),
             score_buf: empty_output_buffer!(score_buf),
             anchors: Some(anchors),
-            category_option: None,
+            categories_buf: None,
             options,
         }
     }
@@ -177,9 +180,10 @@ impl<'a> TensorsToDetection<'a> {
         Self {
             anchors: None,
             nms: NonMaxSuppression::new(max_results),
+            categories_filter,
             location_buf: empty_output_buffer!(location_buf),
             score_buf: empty_output_buffer!(score_buf),
-            category_option: Some((empty_output_buffer!(categories_buf), categories_filter)),
+            categories_buf: Some(empty_output_buffer!(categories_buf)),
             options: Default::default(),
         }
     }
@@ -268,7 +272,7 @@ impl<'a> TensorsToDetection<'a> {
 
     #[inline(always)]
     pub(crate) fn categories_buf(&mut self) -> Option<&mut [u8]> {
-        if let Some((ref mut c, _)) = self.category_option {
+        if let Some(ref mut c) = self.categories_buf {
             return Some(c.data_buffer.as_mut_slice());
         }
         None
@@ -282,8 +286,8 @@ impl<'a> TensorsToDetection<'a> {
     #[inline(always)]
     pub(crate) fn realloc(&mut self, num_boxes: usize) {
         realloc_output_buffer!(self.score_buf, num_boxes * self.options.num_classes);
-        if let Some(ref mut c) = self.category_option {
-            realloc_output_buffer!(c.0, num_boxes);
+        if let Some(ref mut c) = self.categories_buf {
+            realloc_output_buffer!(c, num_boxes);
         }
         realloc_output_buffer!(self.location_buf, num_boxes * num_boxes);
     }
@@ -291,12 +295,6 @@ impl<'a> TensorsToDetection<'a> {
     pub(crate) fn result(&mut self, num_boxes: usize) -> DetectionResult {
         let scores = output_buffer_mut_slice!(self.score_buf);
         let location = output_buffer_mut_slice!(self.location_buf);
-        let category_option = if let Some(ref mut c) = self.category_option {
-            assert_eq!(self.options.num_classes, 1);
-            Some((output_buffer_mut_slice!(c.0), &c.1))
-        } else {
-            None
-        };
 
         // check buf if is valid
         debug_assert!(location.len() >= num_boxes * self.options.num_coords);
@@ -306,12 +304,15 @@ impl<'a> TensorsToDetection<'a> {
         }
 
         let mut detections = Vec::with_capacity(num_boxes);
-        if let Some((categories_buf, categories_filter)) = category_option {
+        if let Some(ref mut categories_buf) = self.categories_buf {
+            assert_eq!(self.options.num_classes, 1);
+            let categories_buf = output_buffer_mut_slice!(categories_buf);
             let mut index = 0;
             for i in 0..num_boxes {
                 let next_index = index + self.options.num_coords;
-                if let Some(category) =
-                    categories_filter.create_category(categories_buf[i] as usize, scores[i])
+                if let Some(category) = self
+                    .categories_filter
+                    .create_category(categories_buf[i] as usize, scores[i])
                 {
                     if let Some(d) = Self::generate_detection(
                         &self.options,
@@ -345,17 +346,18 @@ impl<'a> TensorsToDetection<'a> {
                 let next_index = index + self.options.num_coords;
 
                 if max_score >= self.options.min_score_threshold {
-                    let category = Category {
-                        index: class_index as u32,
-                        score: max_score,
-                        category_name: None,
-                        display_name: None,
-                    };
-                    let raw_boxes = &mut location[index..next_index];
+                    if let Some(category) = self
+                        .categories_filter
+                        .create_category(class_index, max_score)
+                    {
+                        let raw_boxes = &mut location[index..next_index];
 
-                    Self::decode_boxes(&self.options, raw_boxes, &anchors[i]);
-                    if let Some(d) = Self::generate_detection(&self.options, category, raw_boxes) {
-                        detections.push(d);
+                        Self::decode_boxes(&self.options, raw_boxes, &anchors[i]);
+                        if let Some(d) =
+                            Self::generate_detection(&self.options, category, raw_boxes)
+                        {
+                            detections.push(d);
+                        }
                     }
                 }
 

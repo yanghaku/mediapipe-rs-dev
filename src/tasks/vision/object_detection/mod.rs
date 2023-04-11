@@ -3,6 +3,7 @@ pub use builder::ObjectDetectorBuilder;
 
 use crate::model::ModelResourceTrait;
 use crate::postprocess::{CategoriesFilter, DetectionResult, TensorsToDetection};
+use crate::preprocess::vision::ImageToTensorInfo;
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
 /// Performs object detection on single images, video frames, or live stream.
@@ -27,6 +28,9 @@ impl ObjectDetector {
 
     #[inline(always)]
     pub fn new_session(&self) -> Result<ObjectDetectorSession, Error> {
+        let image_to_tensor_info =
+            model_resource_check_and_get_impl!(self.model_resource, to_tensor_info, 0)
+                .try_to_image()?;
         let input_tensor_shape =
             model_resource_check_and_get_impl!(self.model_resource, input_tensor_shape, 0);
         let labels = self.model_resource.output_tensor_labels_locale(
@@ -57,6 +61,7 @@ impl ObjectDetector {
             execution_ctx,
             tensors_to_detection,
             num_box_buf: [0f32],
+            image_to_tensor_info,
             input_tensor_shape,
             input_buffer: vec![0; tensor_bytes!(self.input_tensor_type, input_tensor_shape)],
         })
@@ -79,6 +84,7 @@ pub struct ObjectDetectorSession<'model> {
     execution_ctx: GraphExecutionContext<'model>,
     tensors_to_detection: TensorsToDetection<'model>,
 
+    image_to_tensor_info: &'model ImageToTensorInfo,
     num_box_buf: [f32; 1],
     input_tensor_shape: &'model [usize],
     input_buffer: Vec<u8>,

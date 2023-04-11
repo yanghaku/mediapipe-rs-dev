@@ -3,9 +3,10 @@ pub use builder::HandDetectorBuilder;
 
 use crate::model::ModelResourceTrait;
 use crate::postprocess::{
-    Anchor, DetectionBoxFormat, DetectionResult, NonMaxSuppressionAlgorithm,
+    Anchor, CategoriesFilter, DetectionBoxFormat, DetectionResult, NonMaxSuppressionAlgorithm,
     NonMaxSuppressionOverlapType, TensorsToDetection,
 };
+use crate::preprocess::vision::ImageToTensorInfo;
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
 pub struct HandDetector {
@@ -37,12 +38,20 @@ impl HandDetector {
 
     #[inline(always)]
     pub fn new_session(&self) -> Result<HandDetectorSession, Error> {
+        let image_to_tensor_info =
+            model_resource_check_and_get_impl!(self.model_resource, to_tensor_info, 0)
+                .try_to_image()?;
         let input_tensor_shape =
             model_resource_check_and_get_impl!(self.model_resource, input_tensor_shape, 0);
-
+        let labels = self
+            .model_resource
+            .output_tensor_labels_locale(self.score_buf_index, "")?;
+        let min_detection_confidence = self.min_detection_confidence();
+        let categories_filter = CategoriesFilter::new_full(min_detection_confidence, labels.0);
         let mut tensors_to_detection = TensorsToDetection::new_with_anchors(
+            categories_filter,
             &self.anchors,
-            self.min_detection_confidence(),
+            min_detection_confidence,
             self.num_hands(),
             get_type_and_quantization!(self, self.location_buf_index),
             get_type_and_quantization!(self, self.score_buf_index),
@@ -66,6 +75,7 @@ impl HandDetector {
             detector: self,
             execution_ctx,
             tensors_to_detection,
+            image_to_tensor_info,
             input_tensor_shape,
             input_buffer: vec![0; tensor_bytes!(self.input_tensor_type, input_tensor_shape)],
         })
@@ -77,6 +87,7 @@ pub struct HandDetectorSession<'model> {
     execution_ctx: GraphExecutionContext<'model>,
     tensors_to_detection: TensorsToDetection<'model>,
 
+    image_to_tensor_info: &'model ImageToTensorInfo,
     input_tensor_shape: &'model [usize],
     input_buffer: Vec<u8>,
 }
