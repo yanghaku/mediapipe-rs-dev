@@ -72,8 +72,6 @@ fn test_allow_deny_list() {
         "cat"
     );
 
-    eprintln!("{}", res);
-
     let res = ObjectDetectorBuilder::new()
         .model_asset_path(MODEL_1)
         .cpu()
@@ -91,6 +89,4 @@ fn test_allow_deny_list() {
             .as_str(),
         "dog"
     );
-
-    eprintln!("{}", res);
 }

@@ -27,7 +27,18 @@ where
     /// poll next result
     #[inline(always)]
     pub fn next(&mut self) -> Result<Option<TaskSession::Result>, crate::Error> {
-        self.session.process_next(&mut self.video_data)
+        self.session
+            .process_next(&Default::default(), &mut self.video_data)
+    }
+
+    /// poll next result
+    #[inline(always)]
+    pub fn next_with_options(
+        &mut self,
+        process_options: &crate::tasks::vision::ImageProcessingOptions,
+    ) -> Result<Option<TaskSession::Result>, crate::Error> {
+        self.session
+            .process_next(process_options, &mut self.video_data)
     }
 
     results_iter_impl!();

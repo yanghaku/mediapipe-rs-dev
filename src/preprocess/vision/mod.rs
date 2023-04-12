@@ -6,6 +6,7 @@ mod ffmpeg;
 pub use ffmpeg::FFMpegVideoData;
 
 use super::*;
+use crate::tasks::vision::ImageProcessingOptions;
 use crate::TensorType;
 
 pub trait ImageToTensor {
@@ -13,6 +14,7 @@ pub trait ImageToTensor {
     fn to_tensor<T: AsMut<[u8]>>(
         &self,
         to_tensor_info: &ImageToTensorInfo,
+        process_options: &ImageProcessingOptions,
         output_buffers: &mut T,
     ) -> Result<(), Error>;
 

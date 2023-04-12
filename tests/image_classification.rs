@@ -1,10 +1,11 @@
-use mediapipe_rs::tasks::vision::ImageClassifierBuilder;
+use mediapipe_rs::tasks::vision::{ImageClassifierBuilder, ImageProcessingOptions};
 
 const MODEL_1: &'static str = "assets/models/image_classification/efficientnet_lite0_fp32.tflite";
 const MODEL_2: &'static str = "assets/models/image_classification/efficientnet_lite0_uint8.tflite";
 const MODEL_3: &'static str = "assets/models/image_classification/efficientnet_lite2_fp32.tflite";
 const MODEL_4: &'static str = "assets/models/image_classification/efficientnet_lite2_uint8.tflite";
 const IMG: &'static str = "assets/testdata/img/banana.jpg";
+const CAT_AND_DOG_IMG: &'static str = "assets/testdata/img/cat_and_dog.jpg";
 
 #[test]
 fn test_image_classification_model_1() {
@@ -80,4 +81,51 @@ fn test_bird_from_tf_hub() {
         "Passer domesticus"
     );
     eprintln!("{}", res);
+}
+
+#[test]
+fn test_classify_with_options() {
+    let classifier = ImageClassifierBuilder::new()
+        .max_results(1)
+        .model_asset_path(MODEL_1)
+        .finalize()
+        .unwrap();
+    let mut session = classifier.new_session().unwrap();
+    let img = image::open(CAT_AND_DOG_IMG).unwrap();
+
+    // region of interest is left (cat)
+    let cat_res = session
+        .classify_with_options(
+            &img,
+            &ImageProcessingOptions::new()
+                .region_of_interest(0.1, 0.35, 0.55, 0.9)
+                .unwrap(),
+        )
+        .unwrap();
+    assert_eq!(
+        cat_res.classifications[0].categories[0]
+            .category_name
+            .as_ref()
+            .unwrap()
+            .as_str(),
+        "Egyptian cat"
+    );
+
+    // region of interest is right (dog)
+    let dog_res = session
+        .classify_with_options(
+            &img,
+            &ImageProcessingOptions::new()
+                .region_of_interest(0.45, 0., 1., 0.9)
+                .unwrap(),
+        )
+        .unwrap();
+    assert_eq!(
+        dog_res.classifications[0].categories[0]
+            .category_name
+            .as_ref()
+            .unwrap()
+            .as_str(),
+        "bull mastiff"
+    );
 }

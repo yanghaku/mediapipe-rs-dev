@@ -18,31 +18,24 @@ macro_rules! get_rgb_mean_std_from_info {
 }
 
 impl ImageToTensor for DynamicImage {
-    #[inline]
+    #[inline(always)]
     fn to_tensor<T: AsMut<[u8]>>(
         &self,
         info: &ImageToTensorInfo,
+        process_options: &ImageProcessingOptions,
         output_buffer: &mut T,
     ) -> Result<(), Error> {
-        // need resize
-        if info.width != self.width() || info.height != self.height() {
-            dynamic_image_into_tensor(
-                self.resize_exact(info.width, info.height, IMAGE_RESIZE_FILTER),
-                info,
-                output_buffer,
-            )
-        } else {
-            match info.color_space {
-                ImageColorSpaceType::GRAYSCALE => {
-                    unimplemented!()
-                }
-                // we treat unknown as rgb8
-                ImageColorSpaceType::RGB | ImageColorSpaceType::UNKNOWN => {
-                    if let Some(rgb) = self.as_rgb8() {
-                        rgb8_image_buffer_to_tensor(rgb, info, output_buffer)
-                    } else {
-                        rgb8_image_buffer_to_tensor(&self.to_rgb8(), info, output_buffer)
-                    }
+        match info.color_space {
+            ImageColorSpaceType::GRAYSCALE => {
+                unimplemented!()
+            }
+            // we treat unknown as rgb8
+            ImageColorSpaceType::RGB | ImageColorSpaceType::UNKNOWN => {
+                if let Some(rgb) = self.as_rgb8() {
+                    rgb.to_tensor(info, process_options, output_buffer)
+                } else {
+                    self.to_rgb8()
+                        .to_tensor(info, process_options, output_buffer)
                 }
             }
         }
@@ -59,45 +52,69 @@ impl ImageToTensor for RgbImage {
     fn to_tensor<T: AsMut<[u8]>>(
         &self,
         info: &ImageToTensorInfo,
+        process_options: &ImageProcessingOptions,
         output_buffer: &mut T,
     ) -> Result<(), Error> {
-        if info.width != self.width()
-            || info.height != self.height()
-            || info.color_space == ImageColorSpaceType::GRAYSCALE
-        {
-            // must resize or change to gray
-            let mut dynamic_img = DynamicImage::from(self.clone());
-            if info.width != self.width() || info.height != self.height() {
-                dynamic_img =
-                    dynamic_img.resize_exact(info.width, info.height, IMAGE_RESIZE_FILTER);
+        let mut tmp_rgb_img;
+
+        let mut rgb_img = if let Some(ref roi) = process_options.region_of_interest {
+            // check roi
+            let weight = self.width() as f32;
+            let height = self.height() as f32;
+            let x = (roi.left * weight) as u32;
+            let y = (roi.top * height) as u32;
+            let w = ((roi.right - roi.left) * weight) as u32;
+            let h = ((roi.bottom - roi.top) * height) as u32;
+            tmp_rgb_img = imageops::crop_imm(self, x, y, w, h).to_image();
+            match process_options.rotation_degrees {
+                0 => {}
+                90 => {
+                    tmp_rgb_img = imageops::rotate90(&tmp_rgb_img);
+                }
+                180 => {
+                    imageops::rotate180_in_place(&mut tmp_rgb_img);
+                }
+                270 => {
+                    tmp_rgb_img = imageops::rotate270(&tmp_rgb_img);
+                }
+                _ => unreachable!(),
             }
-            return dynamic_image_into_tensor(dynamic_img, info, output_buffer);
+            &tmp_rgb_img
+        } else {
+            match process_options.rotation_degrees {
+                0 => self,
+                90 => {
+                    tmp_rgb_img = imageops::rotate90(self);
+                    &tmp_rgb_img
+                }
+                180 => {
+                    tmp_rgb_img = imageops::rotate180(self);
+                    &tmp_rgb_img
+                }
+                270 => {
+                    tmp_rgb_img = imageops::rotate270(self);
+                    &tmp_rgb_img
+                }
+                _ => unreachable!(),
+            }
+        };
+
+        if info.width != rgb_img.width() || info.height != rgb_img.height() {
+            tmp_rgb_img = imageops::resize(rgb_img, info.width, info.height, IMAGE_RESIZE_FILTER);
+            rgb_img = &tmp_rgb_img;
         }
 
-        rgb8_image_buffer_to_tensor(self, info, output_buffer)
+        if info.color_space == ImageColorSpaceType::GRAYSCALE {
+            // todo: gray image
+            unimplemented!()
+        }
+
+        rgb8_image_buffer_to_tensor(rgb_img, info, output_buffer)
     }
 
     /// return image size: (weight, height)
     fn image_size(&self) -> (u32, u32) {
         (self.width(), self.height())
-    }
-}
-
-#[inline(always)]
-fn dynamic_image_into_tensor(
-    img: DynamicImage,
-    info: &ImageToTensorInfo,
-    output_buffer: &mut impl AsMut<[u8]>,
-) -> Result<(), Error> {
-    debug_assert!(img.width() == info.width && img.height() == info.height);
-    match info.color_space {
-        ImageColorSpaceType::GRAYSCALE => {
-            unimplemented!()
-        }
-        // treat unknown as rgb8
-        ImageColorSpaceType::RGB | ImageColorSpaceType::UNKNOWN => {
-            rgb8_image_buffer_to_tensor(&img.into_rgb8(), info, output_buffer)
-        }
     }
 }
 

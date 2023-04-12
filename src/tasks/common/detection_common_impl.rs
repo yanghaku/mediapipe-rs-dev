@@ -30,7 +30,11 @@ macro_rules! detector_session_impl {
             &mut self,
             input: &impl crate::preprocess::vision::ImageToTensor,
         ) -> Result<$Result, crate::Error> {
-            input.to_tensor(self.image_to_tensor_info, &mut self.input_buffer)?;
+            input.to_tensor(
+                self.image_to_tensor_info,
+                &Default::default(),
+                &mut self.input_buffer,
+            )?;
             self.compute(input.time_stamp_ms())
         }
 
@@ -56,10 +60,25 @@ macro_rules! detection_task_session_impl {
             #[inline]
             fn process_next(
                 &mut self,
+                process_options: &super::ImageProcessingOptions,
                 video_data: &mut impl crate::preprocess::vision::VideoData,
             ) -> Result<Option<Self::Result>, crate::Error> {
+                if process_options.region_of_interest.is_some() {
+                    return Err(crate::Error::ArgumentError(format!(
+                        "{} does not support region of interest.",
+                        stringify!($SessionName)
+                    )));
+                }
+
+                // todo: support rotation
+                assert_eq!(process_options.rotation_degrees, 0);
+
                 if let Some(frame) = video_data.next_frame()? {
-                    frame.to_tensor(self.image_to_tensor_info, &mut self.input_buffer)?;
+                    frame.to_tensor(
+                        self.image_to_tensor_info,
+                        process_options,
+                        &mut self.input_buffer,
+                    )?;
                     return Ok(Some(self.compute(frame.time_stamp_ms())?));
                 }
                 Ok(None)

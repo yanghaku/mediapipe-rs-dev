@@ -74,6 +74,17 @@ impl ImageClassifier {
         self.new_session()?.classify(input)
     }
 
+    /// Classify one image with options to specify the region of interest.
+    #[inline(always)]
+    pub fn classify_with_options(
+        &self,
+        input: &impl ImageToTensor,
+        process_options: &super::ImageProcessingOptions,
+    ) -> Result<ClassificationResult, Error> {
+        self.new_session()?
+            .classify_with_options(input, process_options)
+    }
+
     /// Classify audio stream, and collect all results to [`Vec`]
     #[inline(always)]
     pub fn classify_for_video(
@@ -134,7 +145,26 @@ impl<'model> ImageClassifierSession<'model> {
     /// Classify one image, reuse this session data to speedup.
     #[inline(always)]
     pub fn classify(&mut self, input: &impl ImageToTensor) -> Result<ClassificationResult, Error> {
-        input.to_tensor(self.input_to_tensor_info, &mut self.input_tensor_buf)?;
+        input.to_tensor(
+            self.input_to_tensor_info,
+            &Default::default(),
+            &mut self.input_tensor_buf,
+        )?;
+        self.compute(input.time_stamp_ms())
+    }
+
+    /// Classify one image, reuse this session data to speedup.
+    #[inline(always)]
+    pub fn classify_with_options(
+        &mut self,
+        input: &impl ImageToTensor,
+        process_options: &super::ImageProcessingOptions,
+    ) -> Result<ClassificationResult, Error> {
+        input.to_tensor(
+            self.input_to_tensor_info,
+            process_options,
+            &mut self.input_tensor_buf,
+        )?;
         self.compute(input.time_stamp_ms())
     }
 
@@ -155,10 +185,15 @@ impl<'model> super::TaskSession for ImageClassifierSession<'model> {
     #[inline]
     fn process_next(
         &mut self,
+        process_options: &super::ImageProcessingOptions,
         video_data: &mut impl VideoData,
     ) -> Result<Option<Self::Result>, Error> {
         if let Some(frame) = video_data.next_frame()? {
-            frame.to_tensor(self.input_to_tensor_info, &mut self.input_tensor_buf)?;
+            frame.to_tensor(
+                self.input_to_tensor_info,
+                process_options,
+                &mut self.input_tensor_buf,
+            )?;
             return Ok(Some(self.compute(frame.time_stamp_ms())?));
         }
         Ok(None)
