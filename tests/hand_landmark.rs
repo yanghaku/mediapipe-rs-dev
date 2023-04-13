@@ -19,9 +19,14 @@ fn test_hand_detection() {
 
 #[test]
 fn test_hand_landmark() {
+    let img = image::open(HANDS_1).unwrap();
     let hand_landmark_results = HandLandmarkerBuilder::new()
         .model_asset_path(MODEL_PATH)
         .cpu()
+        .num_hands(10)
         .finalize()
+        .unwrap()
+        .detect(&img)
         .unwrap();
+    eprintln!("{}", hand_landmark_results);
 }

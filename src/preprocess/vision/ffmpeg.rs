@@ -77,8 +77,7 @@ impl<'a> ImageToTensor for FFMpegFrame<'a> {
         let mut scale_frame_buffer = self.0.scale_frame_buffer.borrow_mut();
 
         // crop and rotate, then scale using filter
-        let data = if process_options.rotation_degrees != 0
-            || process_options.region_of_interest.is_some()
+        let data = if process_options.rotation != 0. || process_options.region_of_interest.is_some()
         {
             const IN_NODE: &'static str = "Parsed_buffer_0";
             const OUT_NODE_PREFIX: &'static str = "Parsed_buffersink_";
@@ -86,25 +85,21 @@ impl<'a> ImageToTensor for FFMpegFrame<'a> {
 
             // config filter desc
             let mut desc = if let Some(ref roi) = process_options.region_of_interest {
-                let crop_x = (src_width as f32 * roi.left) as u32;
-                let crop_y = (src_height as f32 * roi.top) as u32;
+                let crop_x = (src_width as f32 * roi.x_min) as u32;
+                let crop_y = (src_height as f32 * roi.y_min) as u32;
+                let crop_w = (src_width as f32 * roi.width) as u32;
+                let crop_h = (src_height as f32 * roi.height) as u32;
                 num_node += 1;
                 format!(
                     "[c_in];[c_in]crop={}:{}:{}:{}",
-                    src_width, src_height, crop_x, crop_y
+                    crop_w, crop_h, crop_x, crop_y
                 )
             } else {
                 String::new()
             };
-            if process_options.rotation_degrees != 0 {
+            if process_options.rotation != 0. {
                 num_node += 1;
-                desc.extend(
-                    format!(
-                        "[r_in];[r_in]rotate={}*PI/180",
-                        process_options.rotation_degrees
-                    )
-                    .chars(),
-                );
+                desc.extend(format!("[r_in];[r_in]rotate={}", process_options.rotation).chars());
             }
             let out_format = match to_tensor_info.color_space {
                 ImageColorSpaceType::GRAYSCALE => {

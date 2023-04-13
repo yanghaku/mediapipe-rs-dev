@@ -1,7 +1,9 @@
 extern crate image as image_crate;
 
 use super::*;
-pub(super) use image_crate::{imageops, DynamicImage, EncodableLayout, ImageBuffer, Rgb, RgbImage};
+pub(super) use image_crate::{
+    imageops, DynamicImage, EncodableLayout, GenericImageView, ImageBuffer, Pixel, Rgb, RgbImage,
+};
 
 const IMAGE_RESIZE_FILTER: imageops::FilterType = imageops::FilterType::Gaussian;
 
@@ -42,8 +44,9 @@ impl ImageToTensor for DynamicImage {
     }
 
     /// return image size: (weight, height)
+    #[inline(always)]
     fn image_size(&self) -> (u32, u32) {
-        (self.width(), self.height())
+        self.dimensions()
     }
 }
 
@@ -61,41 +64,31 @@ impl ImageToTensor for RgbImage {
             // check roi
             let weight = self.width() as f32;
             let height = self.height() as f32;
-            let x = (roi.left * weight) as u32;
-            let y = (roi.top * height) as u32;
-            let w = ((roi.right - roi.left) * weight) as u32;
-            let h = ((roi.bottom - roi.top) * height) as u32;
+            let x = (roi.x_min * weight) as u32;
+            let y = (roi.y_min * height) as u32;
+            let w = (roi.width * weight) as u32;
+            let h = (roi.height * height) as u32;
             tmp_rgb_img = imageops::crop_imm(self, x, y, w, h).to_image();
-            match process_options.rotation_degrees {
-                0 => {}
-                90 => {
-                    tmp_rgb_img = imageops::rotate90(&tmp_rgb_img);
-                }
-                180 => {
+            let abs = process_options.rotation.abs();
+            if abs > 0.01 {
+                if (abs - std::f32::consts::PI).abs() < 0.01 {
                     imageops::rotate180_in_place(&mut tmp_rgb_img);
+                } else {
+                    tmp_rgb_img = ops_inner::rotate_any(&tmp_rgb_img, process_options.rotation);
                 }
-                270 => {
-                    tmp_rgb_img = imageops::rotate270(&tmp_rgb_img);
-                }
-                _ => unreachable!(),
             }
             &tmp_rgb_img
         } else {
-            match process_options.rotation_degrees {
-                0 => self,
-                90 => {
-                    tmp_rgb_img = imageops::rotate90(self);
-                    &tmp_rgb_img
-                }
-                180 => {
+            let abs = process_options.rotation.abs();
+            if abs > 0.01 {
+                if (abs - std::f32::consts::PI).abs() < 0.01 {
                     tmp_rgb_img = imageops::rotate180(self);
-                    &tmp_rgb_img
+                } else {
+                    tmp_rgb_img = ops_inner::rotate_any(self, process_options.rotation);
                 }
-                270 => {
-                    tmp_rgb_img = imageops::rotate270(self);
-                    &tmp_rgb_img
-                }
-                _ => unreachable!(),
+                &tmp_rgb_img
+            } else {
+                self
             }
         };
 
@@ -113,8 +106,9 @@ impl ImageToTensor for RgbImage {
     }
 
     /// return image size: (weight, height)
+    #[inline(always)]
     fn image_size(&self) -> (u32, u32) {
-        (self.width(), self.height())
+        self.dimensions()
     }
 }
 
@@ -201,5 +195,81 @@ where
             };
         }
         _ => unimplemented!(),
+    }
+}
+
+mod ops_inner {
+    use super::*;
+
+    /// Rotate an image any radians clockwise.
+    /// angle is in radians
+    #[inline]
+    pub fn rotate_any<I: GenericImageView>(
+        image: &I,
+        angle: f32,
+    ) -> ImageBuffer<I::Pixel, Vec<<I::Pixel as Pixel>::Subpixel>>
+    where
+        I::Pixel: 'static,
+    {
+        let (width, height) = image.dimensions();
+
+        let cos = angle.cos();
+        let sin = angle.sin();
+        let new_width = ((cos * width as f32).abs() + (sin * height as f32).abs()) as u32;
+        let new_height = ((sin * width as f32).abs() + (cos * height as f32).abs()) as u32;
+
+        let mut out = ImageBuffer::new(new_width, new_height);
+        rotate_any_in(image, &mut out, angle);
+        out
+    }
+
+    #[inline]
+    fn rotate_any_in<I, Container>(
+        image: &I,
+        destination: &mut ImageBuffer<I::Pixel, Container>,
+        angle: f32,
+    ) where
+        I: GenericImageView,
+        I::Pixel: 'static,
+        Container: std::ops::DerefMut<Target = [<I::Pixel as Pixel>::Subpixel]>,
+    {
+        let (dst_w, dst_h) = destination.dimensions();
+        let (src_w, src_h) = image.dimensions();
+
+        //  x_old = cos(angle) * (x - dst_w / 2) + sin(angle) * (y - dst_h / 2) + src_w / 2
+        //  y_old = - sin(angle) * (x - dst_w / 2) + cos(angle) * (y - dst_h / 2) + src_h / 2
+
+        let cos = angle.cos();
+        let sin = angle.sin();
+        let src_w_div2 = src_w as f32 / 2.;
+        let src_h_div2 = src_h as f32 / 2.;
+        let dst_w_div2 = dst_w as f32 / 2.;
+        let dst_h_div2 = dst_h as f32 / 2.;
+        for x in 0..dst_w {
+            let add_x_old = cos * (x as f32 - dst_w_div2) + src_w_div2 + sin * (-dst_h_div2);
+            let add_y_old = -sin * (x as f32 - dst_w_div2) + src_h_div2 + cos * (-dst_h_div2);
+            for y in 0..dst_h {
+                let x_old = add_x_old + sin * (y as f32);
+                if x_old < 0. {
+                    continue;
+                }
+                let x_old = x_old as u32;
+                if x_old >= src_w {
+                    continue;
+                }
+
+                let y_old = add_y_old + cos * (y as f32);
+                if y_old < 0. {
+                    continue;
+                }
+                let y_old = y_old as u32;
+                if y_old >= src_h {
+                    continue;
+                }
+
+                let pixel = image.get_pixel(x_old, y_old);
+                destination.put_pixel(x, y, pixel);
+            }
+        }
     }
 }

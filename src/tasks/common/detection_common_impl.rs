@@ -71,7 +71,7 @@ macro_rules! detection_task_session_impl {
                 }
 
                 // todo: support rotation
-                assert_eq!(process_options.rotation_degrees, 0);
+                assert_eq!(process_options.rotation, 0.);
 
                 if let Some(frame) = video_data.next_frame()? {
                     frame.to_tensor(

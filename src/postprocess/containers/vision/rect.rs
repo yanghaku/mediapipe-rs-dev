@@ -59,28 +59,6 @@ impl Rect<u32> {
     }
 }
 
-macro_rules! min_f32 {
-    ( $x:expr, $y:expr ) => {{
-        let diff = $x - $y;
-        if diff < 0. {
-            $x
-        } else {
-            $y
-        }
-    }};
-}
-
-macro_rules! max_f32 {
-    ( $x:expr, $y:expr ) => {{
-        let diff = $x - $y;
-        if diff > 0. {
-            $x
-        } else {
-            $y
-        }
-    }};
-}
-
 impl Rect<f32> {
     #[inline(always)]
     pub fn to_rect(&self, image_height: u32, image_width: u32) -> Rect<u32> {
