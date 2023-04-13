@@ -1,7 +1,9 @@
 #[cfg(feature = "ffmpeg")]
 mod ffmpeg {
     use mediapipe_rs::preprocess::vision::FFMpegVideoData;
-    use mediapipe_rs::tasks::vision::{ImageClassifierBuilder, ObjectDetectorBuilder};
+    use mediapipe_rs::tasks::vision::{
+        ImageClassifierBuilder, ImageProcessingOptions, ObjectDetectorBuilder,
+    };
 
     const IMAGE_CLASSIFICATION_MODEL: &'static str =
         "assets/models/image_classification/efficientnet_lite0_fp32.tflite";
@@ -87,11 +89,16 @@ mod ffmpeg {
             num_frame += 1;
         }
 
+        // test with region of interest options
         let mut results_iter = session.classify_for_video(input_2).unwrap();
         num_frame = 0;
-        while let Some(result) = results_iter.next().unwrap() {
+        let mut img_options = ImageProcessingOptions::new()
+            .region_of_interest(0.1, 0.1, 0.9, 0.9)
+            .unwrap();
+        while let Some(result) = results_iter.next_with_options(&img_options).unwrap() {
             eprintln!("Frame {}: {}", num_frame, result);
             num_frame += 1;
+            img_options = img_options.rotation_degrees(num_frame * 90).unwrap();
         }
     }
 }

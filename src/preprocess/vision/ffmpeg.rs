@@ -15,7 +15,6 @@ pub struct FFMpegVideoData {
 
     // mutable caches
     scales: RefCell<HashMap<ScaleKey, ffmpeg_next::software::scaling::Context>>,
-    crop_frame_buffer: RefCell<ffmpeg_next::frame::Video>,
     scale_frame_buffer: RefCell<ffmpeg_next::frame::Video>,
 }
 
@@ -26,12 +25,18 @@ impl FFMpegVideoData {
         let convert_to_ms = source.decoder.time_base().numerator() as f64
             / source.decoder.time_base().denominator() as f64
             * 1000.;
+        // todo: fix the timebase is 0
+        let time_base_num = if source.decoder.time_base().numerator() == 0 {
+            1
+        } else {
+            source.decoder.time_base().numerator()
+        };
         let filter_desc_in = format!(
             "buffer=video_size={}x{}:pix_fmt={}:time_base={}/{}:pixel_aspect={}/{}",
             source.decoder.width(),
             source.decoder.height(),
             ffmpeg_next::ffi::AVPixelFormat::from(source.decoder.format()) as u32,
-            source.decoder.time_base().numerator(),
+            time_base_num,
             source.decoder.time_base().denominator(),
             source.decoder.aspect_ratio().numerator(),
             source.decoder.aspect_ratio().denominator()
@@ -41,7 +46,6 @@ impl FFMpegVideoData {
             filter_desc_in,
             convert_to_ms,
             scales: RefCell::new(Default::default()),
-            crop_frame_buffer: RefCell::new(ffmpeg_next::frame::Video::empty()),
             scale_frame_buffer: RefCell::new(ffmpeg_next::frame::Video::empty()),
         })
     }
@@ -68,27 +72,25 @@ impl<'a> ImageToTensor for FFMpegFrame<'a> {
         process_options: &ImageProcessingOptions,
         output_buffer: &mut T,
     ) -> Result<(), Error> {
-        let mut src_width = self.0.source.frame.width();
-        let mut src_height = self.0.source.frame.height();
+        let src_width = self.0.source.frame.width();
+        let src_height = self.0.source.frame.height();
+        let mut scale_frame_buffer = self.0.scale_frame_buffer.borrow_mut();
 
-        // crop and rotate
-        let mut crop_frame_buffer = self.0.crop_frame_buffer.borrow_mut();
-        let src_frame = if process_options.rotation_degrees != 0
+        // crop and rotate, then scale using filter
+        let data = if process_options.rotation_degrees != 0
             || process_options.region_of_interest.is_some()
         {
             const IN_NODE: &'static str = "Parsed_buffer_0";
             const OUT_NODE_PREFIX: &'static str = "Parsed_buffersink_";
-            let mut num_node = 1;
+            let mut num_node = 3;
 
             // config filter desc
             let mut desc = if let Some(ref roi) = process_options.region_of_interest {
                 let crop_x = (src_width as f32 * roi.left) as u32;
                 let crop_y = (src_height as f32 * roi.top) as u32;
-                src_width = (src_width as f32 * (roi.right - roi.left)) as u32;
-                src_height = (src_height as f32 * (roi.bottom - roi.top)) as u32;
                 num_node += 1;
                 format!(
-                    "[in];[in]crop=w={}:h={}:x={}:y={}",
+                    "[c_in];[c_in]crop={}:{}:{}:{}",
                     src_width, src_height, crop_x, crop_y
                 )
             } else {
@@ -98,20 +100,28 @@ impl<'a> ImageToTensor for FFMpegFrame<'a> {
                 num_node += 1;
                 desc.extend(
                     format!(
-                        "[last_out];[last_out]rotate={}*PI/180",
+                        "[r_in];[r_in]rotate={}*PI/180",
                         process_options.rotation_degrees
                     )
                     .chars(),
                 );
-                if process_options.rotation_degrees == 180 {
-                    std::mem::swap(&mut src_height, &mut src_width);
-                }
             }
+            let out_format = match to_tensor_info.color_space {
+                ImageColorSpaceType::GRAYSCALE => {
+                    ffmpeg_next::ffi::AVPixelFormat::AV_PIX_FMT_GRAY8 as u32
+                }
+                _ => ffmpeg_next::ffi::AVPixelFormat::AV_PIX_FMT_RGB24 as u32,
+            };
+            desc.extend(
+                format!(
+                    "[s_in];[s_in]scale={}:{}[f];[f]format=pix_fmts={}[out];[out]buffersink",
+                    to_tensor_info.width, to_tensor_info.height, out_format
+                )
+                .chars(),
+            );
 
             let mut filter_graph = ffmpeg_next::filter::Graph::new();
-            filter_graph.parse(
-                format!("{}{}[out];[out]buffersink", self.0.filter_desc_in, desc).as_str(),
-            )?;
+            filter_graph.parse(format!("{}{}", self.0.filter_desc_in, desc).as_str())?;
             filter_graph.validate()?;
             filter_graph
                 .get(IN_NODE)
@@ -122,35 +132,30 @@ impl<'a> ImageToTensor for FFMpegFrame<'a> {
                 .get(format!("{}{}", OUT_NODE_PREFIX, num_node).as_str())
                 .unwrap()
                 .sink()
-                .frame(&mut crop_frame_buffer)?;
-            &*crop_frame_buffer
+                .frame(&mut scale_frame_buffer)?;
+            scale_frame_buffer.data(0)
         } else {
-            &self.0.source.frame
-        };
-
-        // scale and convert format
-        let scale_key = ScaleKey {
-            src_w: src_width,
-            src_h: src_height,
-            dst_w: to_tensor_info.width,
-            dst_h: to_tensor_info.height,
-            dst_format: to_tensor_info.color_space,
-        };
-        let src_format = self.0.source.frame.format();
-        let mut scales_cache = self.0.scales.borrow_mut();
-        let mut scale_frame_buffer = self.0.scale_frame_buffer.borrow_mut();
-        let frame =
+            // scale and convert format
+            let scale_key = ScaleKey {
+                src_w: src_width,
+                src_h: src_height,
+                dst_w: to_tensor_info.width,
+                dst_h: to_tensor_info.height,
+                dst_format: to_tensor_info.color_space,
+            };
+            let src_format = self.0.source.frame.format();
+            let mut scales_cache = self.0.scales.borrow_mut();
             if let Some(scale_ctx) = cached_scale_ctx(&mut scales_cache, src_format, scale_key) {
                 // scale frame
-                scale_ctx.run(&src_frame, &mut scale_frame_buffer)?;
-                &*scale_frame_buffer
+                scale_ctx.run(&self.0.source.frame, &mut scale_frame_buffer)?;
+                scale_frame_buffer.data(0)
             } else {
-                &src_frame
-            };
+                self.0.source.frame.data(0)
+            }
+        };
 
         match to_tensor_info.color_space {
             ImageColorSpaceType::RGB | ImageColorSpaceType::UNKNOWN => {
-                let data = frame.data(0);
                 let img = image::ImageBuffer::<image::Rgb<u8>, &[u8]>::from_raw(
                     to_tensor_info.width,
                     to_tensor_info.height,
