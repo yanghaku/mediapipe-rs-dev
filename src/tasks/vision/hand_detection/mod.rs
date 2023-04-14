@@ -47,7 +47,8 @@ impl HandDetector {
             .model_resource
             .output_tensor_labels_locale(self.score_buf_index, "")?;
         let min_detection_confidence = self.min_detection_confidence();
-        let categories_filter = CategoriesFilter::new_full(min_detection_confidence, labels.0);
+        let categories_filter =
+            CategoriesFilter::new_full(min_detection_confidence, labels.0, None);
         let mut tensors_to_detection = TensorsToDetection::new_with_anchors(
             categories_filter,
             &self.anchors,

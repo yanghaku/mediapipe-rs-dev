@@ -45,6 +45,22 @@ macro_rules! empty_output_buffer {
             },
         }
     };
+
+    ( $x:ident, $elem_size:expr ) => {{
+        let bytes_size = tensor_byte_size!($x.0) * $elem_size;
+        match $x.1 {
+            Some(q) => OutputBuffer {
+                data_buffer: vec![0; bytes_size],
+                tensor_type: $x.0,
+                quantization_parameters: Some((q, vec![0f32; $elem_size])),
+            },
+            None => OutputBuffer {
+                data_buffer: vec![0; bytes_size],
+                tensor_type: $x.0,
+                quantization_parameters: None,
+            },
+        }
+    }};
 }
 
 macro_rules! realloc_output_buffer {

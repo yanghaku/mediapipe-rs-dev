@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use std::ops::{Deref, DerefMut};
 
 /// Landmark represents a point in 3D space with x, y, z coordinates. The
 /// landmark coordinates are in meters. z represents the landmark depth, and the
@@ -25,8 +26,22 @@ pub struct Landmark {
 
 /// A list of Landmarks.
 #[derive(Debug)]
-pub struct Landmarks {
-    pub landmarks: Vec<Landmark>,
+pub struct Landmarks(pub Vec<Landmark>);
+
+impl Deref for Landmarks {
+    type Target = Vec<Landmark>;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Landmarks {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 /// A normalized version of above Landmark struct. All coordinates should be within [0, 1].
@@ -60,12 +75,12 @@ impl Display for Landmark {
 impl Display for Landmarks {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "  Landmarks:")?;
-        if self.landmarks.is_empty() {
+        if self.is_empty() {
             return writeln!(f, "  No Landmark");
         }
-        for i in 0..self.landmarks.len() {
-            writeln!(f, "  Landmark #{}:", i)?;
-            let l = self.landmarks.get(i).unwrap();
+        for i in 0..self.len() {
+            writeln!(f, "    Landmark #{}:", i)?;
+            let l = self.get(i).unwrap();
             write!(f, "{}", l)?;
         }
         Ok(())

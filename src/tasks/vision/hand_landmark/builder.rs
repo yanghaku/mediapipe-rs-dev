@@ -10,6 +10,19 @@ pub struct HandLandmarkerBuilder {
     pub(super) hand_landmark_options: HandLandmarkOptions,
 }
 
+macro_rules! check_fp32 {
+    ( $model_resource:ident, $index:ident ) => {{
+        let tensor_type =
+            model_resource_check_and_get_impl!($model_resource, output_tensor_type, $index);
+        if tensor_type != crate::TensorType::F32 {
+            return Err(crate::Error::ModelInconsistentError(format!(
+                "expect output `{}` type is Fp32, but got `{:?}`",
+                $index, tensor_type
+            )));
+        }
+    }};
+}
+
 impl HandLandmarkerBuilder {
     #[inline(always)]
     pub fn new() -> Self {
@@ -65,6 +78,15 @@ impl HandLandmarkerBuilder {
         let input_tensor_type =
             model_resource_check_and_get_impl!(model_resource, input_tensor_type, 0);
 
+        // todo: get these from metadata
+        let handedness_buf_index = 2;
+        let score_buf_index = 1;
+        let landmarks_buf_index = 0;
+        let world_landmarks_buf_index = 3;
+        // now only fp32 model
+        check_fp32!(model_resource, handedness_buf_index);
+        check_fp32!(model_resource, score_buf_index);
+
         let graph = crate::GraphBuilder::new(
             model_resource.model_backend(),
             self.base_task_options.execution_target,
@@ -76,10 +98,10 @@ impl HandLandmarkerBuilder {
             model_resource,
             graph,
             subtask,
-            handedness_buf_index: 2,
-            score_buf_index: 1,
-            landmarks_buf_index: 0,
-            world_landmarks_buf_index: 3,
+            handedness_buf_index,
+            score_buf_index,
+            landmarks_buf_index,
+            world_landmarks_buf_index,
             input_tensor_type,
         })
     }

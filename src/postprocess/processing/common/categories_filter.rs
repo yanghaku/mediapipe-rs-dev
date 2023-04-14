@@ -15,13 +15,21 @@ pub(crate) struct CategoriesFilter<'a> {
 }
 
 impl<'a> CategoriesFilter<'a> {
+    /// no allow or deny list
     #[inline(always)]
-    pub(crate) fn new_full(score_threshold: f32, labels: &'a [u8]) -> Self {
+    pub(crate) fn new_full(
+        score_threshold: f32,
+        labels: &'a [u8],
+        labels_locale: Option<&'a [u8]>,
+    ) -> Self {
         let mut vec = Vec::new();
         let mut label_file = MemoryTextFile::new(labels);
 
         while let Some(line) = label_file.next_line() {
             vec.push(Label::Allowed((line, None)));
+        }
+        if let Some(labels_locale) = labels_locale {
+            Self::add_labels_locale(&mut vec, labels_locale);
         }
 
         Self {

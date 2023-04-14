@@ -4,82 +4,223 @@ use super::{HandDetector, HandDetectorBuilder, HandDetectorSession};
 pub use builder::HandLandmarkerBuilder;
 
 use crate::model::ModelResourceTrait;
-use crate::postprocess::{HandLandmarkResult, ResultsIter};
-use crate::preprocess::{InToTensorsIterator, Tensor, TensorsIterator};
-use crate::tasks::TaskSession;
+use crate::postprocess::{
+    CategoriesFilter, HandLandmarkResult, HandLandmarkResults, NormalizedRect, TensorsToLandmarks,
+    VideoResultsIter,
+};
+use crate::preprocess::vision::{ImageToTensor, ImageToTensorInfo, VideoData};
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
 pub struct HandLandmarker {
-    pub(super) build_options: HandLandmarkerBuilder,
-    pub(super) model_resource: Box<dyn ModelResourceTrait>,
-    pub(super) graph: Graph,
+    build_options: HandLandmarkerBuilder,
+    model_resource: Box<dyn ModelResourceTrait>,
+    graph: Graph,
 
-    pub(super) subtask: HandDetector,
+    subtask: HandDetector,
 
-    pub(super) handedness_buf_index: usize,
-    pub(super) score_buf_index: usize,
-    pub(super) landmarks_buf_index: usize,
-    pub(super) world_landmarks_buf_index: usize,
+    handedness_buf_index: usize,
+    score_buf_index: usize,
+    landmarks_buf_index: usize,
+    world_landmarks_buf_index: usize,
 
     // only one input and one output
-    pub(super) input_tensor_type: TensorType,
+    input_tensor_type: TensorType,
 }
 
 impl HandLandmarker {
-    base_task_options_get_impl!();
+    pub const NUM_LANDMARKS: u32 = 21;
+    pub const LANDMARKS_NORMALIZE_Z: f32 = 0.4;
+
+    detector_impl!(HandLandmarkerSession, HandLandmarkResults);
 
     hand_landmark_options_get_impl!();
 
     #[inline(always)]
+    pub fn subtask(&self) -> &HandDetector {
+        &self.subtask
+    }
+
+    #[inline(always)]
     pub fn new_session(&self) -> Result<HandLandmarkerSession, Error> {
-        todo!()
-    }
+        let image_to_tensor_info =
+            model_resource_check_and_get_impl!(self.model_resource, to_tensor_info, 0)
+                .try_to_image()?;
+        let input_tensor_shape =
+            model_resource_check_and_get_impl!(self.model_resource, input_tensor_shape, 0);
 
-    /// Detect one image.
+        // todo: parse index from metadata
+        let hand_labels = self.model_resource.output_tensor_labels_locale(0, "")?.0;
+        let categories_filter =
+            CategoriesFilter::new_full(f32::MIN, hand_labels, Some(hand_labels));
+
+        let landmarks_out = get_type_and_quantization!(self, self.landmarks_buf_index);
+        let landmarks_shape = model_resource_check_and_get_impl!(
+            self.model_resource,
+            output_tensor_shape,
+            self.landmarks_buf_index
+        );
+        let mut tensors_to_landmarks =
+            TensorsToLandmarks::new(Self::NUM_LANDMARKS, landmarks_out, landmarks_shape)?;
+        tensors_to_landmarks
+            .set_image_size(image_to_tensor_info.width, image_to_tensor_info.height);
+        tensors_to_landmarks.set_normalize_z(Self::LANDMARKS_NORMALIZE_Z);
+
+        let world_landmarks_out = get_type_and_quantization!(self, self.world_landmarks_buf_index);
+        let world_landmarks_shape = model_resource_check_and_get_impl!(
+            self.model_resource,
+            output_tensor_shape,
+            self.world_landmarks_buf_index
+        );
+        let tensors_to_world_landmarks = TensorsToLandmarks::new(
+            Self::NUM_LANDMARKS,
+            world_landmarks_out,
+            world_landmarks_shape,
+        )?;
+
+        let hand_detector_session = self.subtask.new_session()?;
+        let execution_ctx = self.graph.init_execution_context()?;
+
+        Ok(HandLandmarkerSession {
+            hand_landmarker: self,
+            execution_ctx,
+            hand_detector_session,
+            image_to_tensor_info,
+            input_tensor_shape,
+            input_buffer: vec![0; tensor_bytes!(self.input_tensor_type, input_tensor_shape)],
+            score_of_hand_presence: [0.],
+            score_of_handedness: [0.],
+            categories_filter,
+            tensors_to_landmarks,
+            tensors_to_world_landmarks,
+        })
+    }
+}
+
+pub struct HandLandmarkerSession<'model> {
+    hand_landmarker: &'model HandLandmarker,
+    execution_ctx: GraphExecutionContext<'model>,
+
+    hand_detector_session: HandDetectorSession<'model>,
+
+    image_to_tensor_info: &'model ImageToTensorInfo,
+    input_tensor_shape: &'model [usize],
+    input_buffer: Vec<u8>,
+    score_of_hand_presence: [f32; 1],
+    score_of_handedness: [f32; 1],
+    categories_filter: CategoriesFilter<'model>,
+    tensors_to_landmarks: TensorsToLandmarks,
+    tensors_to_world_landmarks: TensorsToLandmarks,
+}
+
+impl<'model> HandLandmarkerSession<'model> {
+    const DETECTION_TO_RECT_ROTATION_OPTION: Option<(f32, usize, usize)> =
+        Some((90. * std::f32::consts::PI / 180.0, 0, 2));
+
+    /// Detect one image
     #[inline(always)]
-    pub fn detect(&self, input: &impl Tensor) -> Result<HandLandmarkResult, Error> {
-        todo!()
-        // self.new_session()?.detect(input)
+    pub fn detect(&mut self, input: &impl ImageToTensor) -> Result<HandLandmarkResults, Error> {
+        let (img_w, img_h) = input.image_size();
+        let hand_detection_result = self.hand_detector_session.detect(input)?;
+        let mut hand_landmark_results = Vec::with_capacity(hand_detection_result.detections.len());
+
+        for d in hand_detection_result.detections.iter() {
+            // get roi
+            let hand_rect = NormalizedRect::from_detection(
+                &d,
+                Self::DETECTION_TO_RECT_ROTATION_OPTION,
+                img_w,
+                img_h,
+                false,
+            )
+            .transform(img_w, img_h, 2.6, 2.6, 0.0, -0.5, None, true);
+
+            // image to tensor
+            input.to_tensor(
+                self.image_to_tensor_info,
+                &super::ImageProcessingOptions::from_normalized_rect(&hand_rect),
+                &mut self.input_buffer,
+            )?;
+
+            // set input and compute
+            self.execution_ctx.set_input(
+                0,
+                self.hand_landmarker.input_tensor_type,
+                self.input_tensor_shape,
+                self.input_buffer.as_ref(),
+            )?;
+            self.execution_ctx.compute()?;
+
+            // check hand presence score
+            self.execution_ctx.get_output(
+                self.hand_landmarker.score_buf_index,
+                &mut self.score_of_hand_presence,
+            )?;
+            if self.score_of_hand_presence[0] < self.hand_landmarker.min_hand_presence_confidence()
+            {
+                continue;
+            }
+
+            // get handedness, left or right
+            self.execution_ctx.get_output(
+                self.hand_landmarker.handedness_buf_index,
+                &mut self.score_of_handedness,
+            )?;
+            let category = if self.score_of_handedness[0] > 0.5 {
+                self.categories_filter
+                    .create_category(0, self.score_of_handedness[0])
+                    .unwrap()
+            } else {
+                self.categories_filter
+                    .create_category(1, 1. - self.score_of_handedness[0])
+                    .unwrap()
+            };
+
+            // get landmarks
+            self.execution_ctx.get_output(
+                self.hand_landmarker.landmarks_buf_index,
+                self.tensors_to_landmarks.landmark_buffer(),
+            )?;
+            let hand_landmarks = self.tensors_to_landmarks.result(true);
+            self.execution_ctx.get_output(
+                self.hand_landmarker.world_landmarks_buf_index,
+                self.tensors_to_world_landmarks.landmark_buffer(),
+            )?;
+            let hand_world_landmarks = self.tensors_to_world_landmarks.result(false);
+
+            hand_landmark_results.push(HandLandmarkResult {
+                handedness: category,
+                hand_landmarks,
+                hand_world_landmarks,
+            });
+        }
+
+        Ok(HandLandmarkResults(hand_landmark_results))
     }
 
-    /// Detect input video stream, and collect all results to [`Vec`]
-    #[inline(always)]
-    pub fn detect_for_video<'a>(
-        &'a self,
-        input_stream: impl InToTensorsIterator<'a>,
-    ) -> Result<Vec<HandLandmarkResult>, Error> {
-        let iter = self.detection_results_iter(input_stream)?;
-        let mut session = self.new_session()?;
-        iter.to_vec(&mut session)
-    }
-
+    /// Detect input video stream use this session.
     /// Return a iterator for results, process input stream when poll next result.
     #[inline(always)]
-    pub fn detection_results_iter<'a, T>(
-        &'a self,
-        input_stream: T,
-    ) -> Result<ResultsIter<HandLandmarkerSession<'_>, T::Iter>, Error>
-    where
-        T: InToTensorsIterator<'a>,
-    {
-        let to_tensor_info =
-            model_resource_check_and_get_impl!(self.model_resource, to_tensor_info, 0);
-        let input_tensors_iter = input_stream.into_tensors_iter(to_tensor_info)?;
-        Ok(ResultsIter::new(input_tensors_iter))
+    pub fn detect_for_video<InputVideoData: VideoData>(
+        &mut self,
+        video_data: InputVideoData,
+    ) -> Result<VideoResultsIter<Self, InputVideoData>, Error> {
+        Ok(VideoResultsIter::new(self, video_data))
     }
 }
 
-pub struct HandLandmarkerSession<'a> {
-    land: &'a HandLandmarker,
-}
+impl<'model> super::TaskSession for HandLandmarkerSession<'model> {
+    type Result = HandLandmarkResults;
 
-impl<'a> TaskSession for HandLandmarkerSession<'a> {
-    type Result = HandLandmarkResult;
-
-    fn process_next<TensorsIter: TensorsIterator>(
+    #[inline]
+    fn process_next(
         &mut self,
-        input_tensors_iter: &mut TensorsIter,
+        _process_options: &super::ImageProcessingOptions,
+        video_data: &mut impl VideoData,
     ) -> Result<Option<Self::Result>, Error> {
-        todo!()
+        // todo: video track optimize
+        if let Some(frame) = video_data.next_frame()? {
+            return self.detect(&frame).map(|r| Some(r));
+        }
+        Ok(None)
     }
 }

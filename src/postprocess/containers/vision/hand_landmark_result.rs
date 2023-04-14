@@ -1,5 +1,6 @@
 use crate::postprocess::Category;
 use std::fmt::{Display, Formatter};
+use std::ops::{Deref, DerefMut};
 
 /// The 21 hand landmarks.
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy, Clone)]
@@ -28,43 +29,59 @@ pub enum HandLandmark {
     PinkyTip = 20,
 }
 
-/// The hand landmarks detection result from HandLandmark, where each vector
-/// element represents a single hand detected in the image.
-pub struct HandLandmarkResult {
-    /// Classification of handedness.
-    pub handedness: Vec<Category>,
-    /// Detected hand landmarks in normalized image coordinates.
-    pub hand_landmarks: Vec<super::landmark::NormalizedLandmarks>,
-    /// Detected hand landmarks in world coordinates.
-    pub hand_world_landmarks: Vec<super::landmark::Landmarks>,
-}
-
 impl HandLandmark {
+    pub const NAMES: &'static [&'static str] = &[
+        "WRIST",
+        "THUMB_CMC",
+        "THUMB_MCP",
+        "THUMB_IP",
+        "THUMB_TIP",
+        "INDEX_FINGER_MCP",
+        "INDEX_FINGER_PIP",
+        "INDEX_FINGER_DIP",
+        "INDEX_FINGER_TIP",
+        "MIDDLE_FINGER_MCP",
+        "MIDDLE_FINGER_PIP",
+        "MIDDLE_FINGER_DIP",
+        "MIDDLE_FINGER_TIP",
+        "RING_FINGER_MCP",
+        "RING_FINGER_PIP",
+        "RING_FINGER_DIP",
+        "RING_FINGER_TIP",
+        "PINKY_MCP",
+        "PINKY_PIP",
+        "PINKY_DIP",
+        "PINKY_TIP",
+    ];
+
+    // reference: https://developers.google.com/mediapipe/solutions/vision/hand_landmarker
+    pub const CONNECTIONS: &'static [(usize, usize)] = &[
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 4),
+        (0, 5),
+        (5, 6),
+        (6, 7),
+        (7, 8),
+        (5, 9),
+        (9, 10),
+        (10, 11),
+        (11, 12),
+        (9, 13),
+        (13, 14),
+        (14, 15),
+        (15, 16),
+        (13, 17),
+        (0, 17),
+        (17, 18),
+        (18, 19),
+        (19, 20),
+    ];
+
     #[inline(always)]
     pub fn name(&self) -> &'static str {
-        match self {
-            HandLandmark::WRIST => "WRIST",
-            HandLandmark::ThumbCmc => "THUMB_CMC",
-            HandLandmark::ThumbMcp => "THUMB_MCP",
-            HandLandmark::ThumbIp => "THUMB_IP",
-            HandLandmark::ThumbTip => "THUMB_TIP",
-            HandLandmark::IndexFingerMcp => "INDEX_FINGER_MCP",
-            HandLandmark::IndexFingerPip => "INDEX_FINGER_PIP",
-            HandLandmark::IndexFingerDip => "INDEX_FINGER_DIP",
-            HandLandmark::IndexFingerTip => "INDEX_FINGER_TIP",
-            HandLandmark::MiddleFingerMcp => "MIDDLE_FINGER_MCP",
-            HandLandmark::MiddleFingerPip => "MIDDLE_FINGER_PIP",
-            HandLandmark::MiddleFingerDip => "MIDDLE_FINGER_DIP",
-            HandLandmark::MiddleFingerTip => "MIDDLE_FINGER_TIP",
-            HandLandmark::RingFingerMcp => "RING_FINGER_MCP",
-            HandLandmark::RingFingerPip => "RING_FINGER_PIP",
-            HandLandmark::RingFingerDip => "RING_FINGER_DIP",
-            HandLandmark::RingFingerTip => "RING_FINGER_TIP",
-            HandLandmark::PinkyMcp => "PINKY_MCP",
-            HandLandmark::PinkyPip => "PINKY_PIP",
-            HandLandmark::PinkyDip => "PINKY_DIP",
-            HandLandmark::PinkyTip => "PINKY_TIP",
-        }
+        Self::NAMES[(*self) as u32 as usize]
     }
 }
 
@@ -74,40 +91,67 @@ impl Display for HandLandmark {
     }
 }
 
+/// A single hand landmark detection result.
+pub struct HandLandmarkResult {
+    /// Classification of handedness.
+    pub handedness: Category,
+    /// Detected hand landmarks in normalized image coordinates.
+    pub hand_landmarks: super::landmark::NormalizedLandmarks,
+    /// Detected hand landmarks in world coordinates.
+    pub hand_world_landmarks: super::landmark::Landmarks,
+}
+
+/// The hand landmarks detection result from HandLandmark
+pub struct HandLandmarkResults(pub Vec<HandLandmarkResult>);
+
+impl Deref for HandLandmarkResults {
+    type Target = Vec<HandLandmarkResult>;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for HandLandmarkResults {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl Display for HandLandmarkResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "HandLandmarkResult:")?;
-        if self.handedness.is_empty() {
-            writeln!(f, "  No Handedness")?;
-        } else {
-            writeln!(f, "Handedness: ")?;
-            if self.handedness.is_empty() {
-                writeln!(f, "    No Categories")?;
-            } else {
-                for (id, c) in self.handedness.iter().enumerate() {
-                    writeln!(f, "    Category #{}:", id)?;
-                    write!(f, "{}", c)?;
-                }
-            }
-        }
-
+        writeln!(f, "  Handedness: ")?;
+        writeln!(f, "    Category #0:")?;
+        write!(f, "{}", self.handedness)?;
         writeln!(f, "  Landmarks:")?;
-        if self.hand_landmarks.is_empty() {
-            writeln!(f, "  No Landmarks")?;
-        } else {
-            for (id, l) in self.hand_landmarks.iter().enumerate() {
-                writeln!(f, "    Landmark #{}:", id)?;
-                write!(f, "{}", l)?;
-            }
+        for (i, l) in self.hand_landmarks.iter().enumerate() {
+            writeln!(
+                f,
+                "    Normalized Landmark #{} ({}):",
+                i,
+                HandLandmark::NAMES[i]
+            )?;
+            write!(f, "{}", l)?;
         }
-
         writeln!(f, "  WorldLandmarks:")?;
-        if self.hand_world_landmarks.is_empty() {
-            writeln!(f, "  No WorldLandmarks")?;
+        for (i, l) in self.hand_world_landmarks.iter().enumerate() {
+            writeln!(f, "    Landmark #{} ({}):", i, HandLandmark::NAMES[i])?;
+            write!(f, "{}", l)?;
+        }
+        Ok(())
+    }
+}
+
+impl Display for HandLandmarkResults {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.is_empty() {
+            writeln!(f, "No HandLandmarkResult.")?;
         } else {
-            for (id, l) in self.hand_world_landmarks.iter().enumerate() {
-                writeln!(f, "    Landmark #{}:", id)?;
-                write!(f, "{}", l)?;
+            for (i, r) in self.iter().enumerate() {
+                writeln!(f, "HandLandmarkResult #{}", i)?;
+                write!(f, "{}", r)?;
             }
         }
         Ok(())
