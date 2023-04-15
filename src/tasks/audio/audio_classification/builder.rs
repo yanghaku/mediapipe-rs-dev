@@ -10,6 +10,16 @@ pub struct AudioClassifierBuilder {
     pub(super) classification_options: ClassificationOptions,
 }
 
+impl Default for AudioClassifierBuilder {
+    #[inline(always)]
+    fn default() -> Self {
+        Self {
+            base_task_options: Default::default(),
+            classification_options: Default::default(),
+        }
+    }
+}
+
 impl AudioClassifierBuilder {
     #[inline(always)]
     pub fn new() -> Self {
@@ -25,7 +35,7 @@ impl AudioClassifierBuilder {
 
     #[inline]
     pub fn finalize(mut self) -> Result<AudioClassifier, Error> {
-        classification_options_check!(self);
+        classification_options_check!(self, classification_options);
         let buf = base_task_options_check_and_get_buf!(self);
 
         // change the lifetime to 'static, because the buf will move to graph and will not be released.

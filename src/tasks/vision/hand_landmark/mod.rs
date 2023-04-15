@@ -16,7 +16,7 @@ pub struct HandLandmarker {
     model_resource: Box<dyn ModelResourceTrait>,
     graph: Graph,
 
-    subtask: HandDetector,
+    hand_detector: HandDetector,
 
     handedness_buf_index: usize,
     score_buf_index: usize,
@@ -36,8 +36,8 @@ impl HandLandmarker {
     hand_landmark_options_get_impl!();
 
     #[inline(always)]
-    pub fn subtask(&self) -> &HandDetector {
-        &self.subtask
+    pub fn subtask_hand_detector(&self) -> &HandDetector {
+        &self.hand_detector
     }
 
     #[inline(always)]
@@ -77,7 +77,7 @@ impl HandLandmarker {
             world_landmarks_shape,
         )?;
 
-        let hand_detector_session = self.subtask.new_session()?;
+        let hand_detector_session = self.hand_detector.new_session()?;
         let execution_ctx = self.graph.init_execution_context()?;
 
         Ok(HandLandmarkerSession {

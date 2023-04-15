@@ -70,13 +70,13 @@ macro_rules! classification_options_impl {
 }
 
 macro_rules! classification_options_check {
-    ( $self:ident ) => {{
-        if $self.classification_options.max_results == 0 {
+    ( $self:ident, $field_name:ident ) => {{
+        if $self.$field_name.max_results == 0 {
             return Err(crate::Error::ArgumentError(
                 "The number of max results cannot be zero".into(),
             ));
         }
-        if !$self.classification_options.category_allow_list.is_empty()
+        if !$self.$field_name.category_allow_list.is_empty()
             && !$self.classification_options.category_deny_list.is_empty()
         {
             return Err(crate::Error::ArgumentError(

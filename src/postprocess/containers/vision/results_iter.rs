@@ -1,5 +1,5 @@
 /// Used for stream data results, such video, audio.
-pub struct ResultsIter<'session, 'tensor, TaskSession, VideoData>
+pub struct VideoResultsIter<'session, 'tensor, TaskSession, VideoData>
 where
     TaskSession: crate::tasks::vision::TaskSession + 'session,
     VideoData: crate::preprocess::vision::VideoData,
@@ -10,7 +10,7 @@ where
 }
 
 impl<'session, 'tensor, TaskSession, VideoData>
-    ResultsIter<'session, 'tensor, TaskSession, VideoData>
+    VideoResultsIter<'session, 'tensor, TaskSession, VideoData>
 where
     TaskSession: crate::tasks::vision::TaskSession + 'session,
     VideoData: crate::preprocess::vision::VideoData,

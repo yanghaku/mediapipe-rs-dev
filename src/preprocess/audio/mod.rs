@@ -53,5 +53,5 @@ pub struct AudioDataToTensorIter<'a, Source: AudioData = SymphoniaAudioData> {
     process_buffer: Vec<std::collections::VecDeque<f32>>,
     input_num_channels: usize,
     input_sample_rate: usize,
-    processed_time_stamp_ms: u64,
+    processed_timestamp_ms: u64,
 }

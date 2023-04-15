@@ -92,6 +92,7 @@ impl Display for HandLandmark {
 }
 
 /// A single hand landmark detection result.
+#[derive(Debug)]
 pub struct HandLandmarkResult {
     /// Classification of handedness.
     pub handedness: Category,
@@ -102,6 +103,7 @@ pub struct HandLandmarkResult {
 }
 
 /// The hand landmarks detection result from HandLandmark
+#[derive(Debug)]
 pub struct HandLandmarkResults(pub Vec<HandLandmarkResult>);
 
 impl Deref for HandLandmarkResults {
@@ -117,6 +119,16 @@ impl DerefMut for HandLandmarkResults {
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl IntoIterator for HandLandmarkResults {
+    type Item = HandLandmarkResult;
+    type IntoIter = std::vec::IntoIter<HandLandmarkResult>;
+
+    #[inline(always)]
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 

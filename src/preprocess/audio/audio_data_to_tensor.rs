@@ -7,7 +7,7 @@ impl<'a, Source: AudioData> AudioDataToTensorIter<'a, Source> {
         output_buffers: &mut T,
     ) -> Result<Option<u64>, Error> {
         // todo: num_overlapping_samples, fft if need
-        let time_stamp_ms = self.processed_time_stamp_ms;
+        let timestamp_ms = self.processed_timestamp_ms;
         while self.process_buffer.len() == 0
             || self.process_buffer[0].len() < self.audio_to_tensor_info.num_samples
         {
@@ -35,7 +35,7 @@ impl<'a, Source: AudioData> AudioDataToTensorIter<'a, Source> {
         }
 
         self.output_to_tensor(&mut output_buffers.as_mut()[0]);
-        Ok(Some(time_stamp_ms))
+        Ok(Some(timestamp_ms))
     }
 
     pub(crate) fn new(
@@ -58,7 +58,7 @@ impl<'a, Source: AudioData> AudioDataToTensorIter<'a, Source> {
             input_buffer: Vec::new(),
             process_buffer: Vec::new(),
             input_num_channels: 0,
-            processed_time_stamp_ms: 0,
+            processed_timestamp_ms: 0,
             input_sample_rate: 0,
         })
     }
@@ -168,7 +168,7 @@ impl<'a, Source: AudioData> AudioDataToTensorIter<'a, Source> {
 
                     self.process_buffer[c].drain(..process_len);
                     if c == 0 {
-                        self.processed_time_stamp_ms += (process_len as f64
+                        self.processed_timestamp_ms += (process_len as f64
                             / self.audio_to_tensor_info.sample_rate as f64
                             * 1000.)
                             .round() as u64;

@@ -35,7 +35,7 @@ macro_rules! detector_session_impl {
                 &Default::default(),
                 &mut self.input_buffer,
             )?;
-            self.compute(input.time_stamp_ms())
+            self.compute(input.timestamp_ms())
         }
 
         /// Detect input video stream use this session.
@@ -79,7 +79,7 @@ macro_rules! detection_task_session_impl {
                         process_options,
                         &mut self.input_buffer,
                     )?;
-                    return Ok(Some(self.compute(frame.time_stamp_ms())?));
+                    return Ok(Some(self.compute(frame.timestamp_ms())?));
                 }
                 Ok(None)
             }

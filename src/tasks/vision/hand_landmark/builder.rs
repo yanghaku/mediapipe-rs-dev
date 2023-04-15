@@ -1,4 +1,4 @@
-use super::{HandDetectorBuilder, HandLandmarker};
+use super::{HandDetectorBuilder, HandLandmarker, TensorType};
 
 use crate::model::{ModelResourceTrait, ZipFiles};
 use crate::tasks::common::{BaseTaskOptions, HandLandmarkOptions};
@@ -6,21 +6,18 @@ use crate::tasks::common::{BaseTaskOptions, HandLandmarkOptions};
 /// Configure the properties of a new hand landmark task.
 /// Methods can be chained on it in order to configure it.
 pub struct HandLandmarkerBuilder {
-    pub(super) base_task_options: BaseTaskOptions,
-    pub(super) hand_landmark_options: HandLandmarkOptions,
+    pub(in super::super) base_task_options: BaseTaskOptions,
+    pub(in super::super) hand_landmark_options: HandLandmarkOptions,
 }
 
-macro_rules! check_fp32 {
-    ( $model_resource:ident, $index:ident ) => {{
-        let tensor_type =
-            model_resource_check_and_get_impl!($model_resource, output_tensor_type, $index);
-        if tensor_type != crate::TensorType::F32 {
-            return Err(crate::Error::ModelInconsistentError(format!(
-                "expect output `{}` type is Fp32, but got `{:?}`",
-                $index, tensor_type
-            )));
+impl Default for HandLandmarkerBuilder {
+    #[inline(always)]
+    fn default() -> Self {
+        Self {
+            base_task_options: Default::default(),
+            hand_landmark_options: Default::default(),
         }
-    }};
+    }
 }
 
 impl HandLandmarkerBuilder {
@@ -84,8 +81,18 @@ impl HandLandmarkerBuilder {
         let landmarks_buf_index = 0;
         let world_landmarks_buf_index = 3;
         // now only fp32 model
-        check_fp32!(model_resource, handedness_buf_index);
-        check_fp32!(model_resource, score_buf_index);
+        check_tensor_type!(
+            model_resource,
+            handedness_buf_index,
+            output_tensor_type,
+            TensorType::F32
+        );
+        check_tensor_type!(
+            model_resource,
+            score_buf_index,
+            output_tensor_type,
+            TensorType::F32
+        );
 
         let graph = crate::GraphBuilder::new(
             model_resource.model_backend(),
@@ -97,7 +104,7 @@ impl HandLandmarkerBuilder {
             build_options: self,
             model_resource,
             graph,
-            subtask,
+            hand_detector: subtask,
             handedness_buf_index,
             score_buf_index,
             landmarks_buf_index,

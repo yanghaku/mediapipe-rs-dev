@@ -49,11 +49,10 @@ impl AudioClassifier {
             labels.0,
             labels.1,
         );
-        let mut tensors_to_classification = TensorsToClassification::new(
+        let mut tensors_to_classification = TensorsToClassification::new();
+        tensors_to_classification.add_classification_options(
             categories_filter,
             self.build_options.classification_options.max_results,
-        );
-        tensors_to_classification.add_output_cfg(
             vec![0; output_byte_size],
             output_tensor_type,
             quantization_parameters,

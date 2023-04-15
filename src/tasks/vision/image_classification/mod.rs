@@ -35,7 +35,6 @@ impl ImageClassifier {
         let quantization_parameters = self.model_resource.output_tensor_quantization_parameters(0);
         check_quantization_parameters!(output_tensor_type, quantization_parameters, 0);
 
-        let execution_ctx = self.graph.init_execution_context()?;
         let labels = self.model_resource.output_tensor_labels_locale(
             0,
             self.build_options
@@ -49,15 +48,16 @@ impl ImageClassifier {
             labels.0,
             labels.1,
         );
-        let mut tensors_to_classification = TensorsToClassification::new(
+        let mut tensors_to_classification = TensorsToClassification::new();
+        tensors_to_classification.add_classification_options(
             categories_filter,
             self.build_options.classification_options.max_results,
-        );
-        tensors_to_classification.add_output_cfg(
             vec![0; output_byte_size],
             output_tensor_type,
             quantization_parameters,
         );
+
+        let execution_ctx = self.graph.init_execution_context()?;
         Ok(ImageClassifierSession {
             execution_ctx,
             tensors_to_classification,
@@ -150,7 +150,7 @@ impl<'model> ImageClassifierSession<'model> {
             &Default::default(),
             &mut self.input_tensor_buf,
         )?;
-        self.compute(input.time_stamp_ms())
+        self.compute(input.timestamp_ms())
     }
 
     /// Classify one image, reuse this session data to speedup.
@@ -165,7 +165,7 @@ impl<'model> ImageClassifierSession<'model> {
             process_options,
             &mut self.input_tensor_buf,
         )?;
-        self.compute(input.time_stamp_ms())
+        self.compute(input.timestamp_ms())
     }
 
     /// Classify input video stream use this session.
@@ -194,7 +194,7 @@ impl<'model> super::TaskSession for ImageClassifierSession<'model> {
                 process_options,
                 &mut self.input_tensor_buf,
             )?;
-            return Ok(Some(self.compute(frame.time_stamp_ms())?));
+            return Ok(Some(self.compute(frame.timestamp_ms())?));
         }
         Ok(None)
     }

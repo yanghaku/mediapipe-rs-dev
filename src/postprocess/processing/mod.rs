@@ -91,7 +91,7 @@ macro_rules! output_buffer_impl {
         }
 
         #[inline(always)]
-        pub(crate) fn add_output_cfg(
+        fn add_output_cfg(
             &mut self,
             data_buffer: Vec<u8>,
             tensor_type: TensorType,

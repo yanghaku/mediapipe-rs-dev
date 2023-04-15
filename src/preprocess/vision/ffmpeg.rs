@@ -176,7 +176,7 @@ impl<'a> ImageToTensor for FFMpegFrame<'a> {
     }
 
     /// return the current timestamp (ms)
-    fn time_stamp_ms(&self) -> Option<u64> {
+    fn timestamp_ms(&self) -> Option<u64> {
         self.0
             .source
             .frame

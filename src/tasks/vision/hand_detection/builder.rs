@@ -14,6 +14,13 @@ pub struct HandDetectorBuilder {
     pub(super) min_detection_confidence: f32,
 }
 
+impl Default for HandDetectorBuilder {
+    #[inline(always)]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HandDetectorBuilder {
     #[inline(always)]
     pub fn new() -> Self {

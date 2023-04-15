@@ -23,7 +23,7 @@ pub trait ImageToTensor {
 
     /// return the current timestamp (ms)
     /// video frame must return a valid timestamp
-    fn time_stamp_ms(&self) -> Option<u64> {
+    fn timestamp_ms(&self) -> Option<u64> {
         return None;
     }
 }

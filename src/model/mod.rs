@@ -1,16 +1,19 @@
 #![allow(unused)]
 
-use crate::postprocess::QuantizationParameters;
-use crate::preprocess::ToTensorInfo;
-use crate::{Error, GraphEncoding, TensorType};
 use std::collections::HashMap;
 
+pub(crate) use memory_text_file::MemoryTextFile;
+pub(crate) use zip::ZipFiles;
+
+use crate::postprocess::QuantizationParameters;
 #[cfg(feature = "audio")]
 use crate::preprocess::audio::AudioToTensorInfo;
 #[cfg(feature = "text")]
 use crate::preprocess::text::TextToTensorInfo;
 #[cfg(feature = "vision")]
 use crate::preprocess::vision::{ImageColorSpaceType, ImageDataLayout, ImageToTensorInfo};
+use crate::preprocess::ToTensorInfo;
+use crate::{Error, GraphEncoding, TensorType};
 
 /// Abstraction for model resources.
 /// Users can use this trait to get information for models, such as data layout, model backend, etc.
@@ -136,9 +139,21 @@ macro_rules! search_file_in_zip {
     }};
 }
 
+macro_rules! check_tensor_type {
+    ( $model_resource:ident, $index:expr, $func:ident, $tensor_type:expr ) => {{
+        let tensor_type = model_resource_check_and_get_impl!($model_resource, $func, $index);
+        if tensor_type != $tensor_type {
+            return Err(crate::Error::ModelInconsistentError(format!(
+                "Expect {} `{}` type is {:?}, but got `{:?}`",
+                stringify!($func).split("_").next().unwrap(),
+                $index,
+                $tensor_type,
+                tensor_type
+            )));
+        }
+    }};
+}
+
 mod memory_text_file;
 mod tflite;
 mod zip;
-
-pub(crate) use memory_text_file::MemoryTextFile;
-pub(crate) use zip::ZipFiles;

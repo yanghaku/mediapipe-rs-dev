@@ -11,6 +11,16 @@ pub struct TextClassifierBuilder {
     pub(super) classification_options: ClassificationOptions,
 }
 
+impl Default for TextClassifierBuilder {
+    #[inline(always)]
+    fn default() -> Self {
+        Self {
+            base_task_options: Default::default(),
+            classification_options: Default::default(),
+        }
+    }
+}
+
 impl TextClassifierBuilder {
     #[inline(always)]
     pub fn new() -> Self {
@@ -26,7 +36,7 @@ impl TextClassifierBuilder {
 
     #[inline]
     pub fn finalize(mut self) -> Result<TextClassifier, Error> {
-        classification_options_check!(self);
+        classification_options_check!(self, classification_options);
         let buf = base_task_options_check_and_get_buf!(self);
 
         // change the lifetime to 'static, because the buf will move to graph and will not be released.

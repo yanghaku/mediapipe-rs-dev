@@ -45,6 +45,16 @@ impl DerefMut for Landmarks {
     }
 }
 
+impl IntoIterator for Landmarks {
+    type Item = Landmark;
+    type IntoIter = std::vec::IntoIter<Landmark>;
+
+    #[inline(always)]
+    fn into_iter(self) -> Self::IntoIter {
+        todo!()
+    }
+}
+
 /// A normalized version of above Landmark struct. All coordinates should be within [0, 1].
 pub type NormalizedLandmark = Landmark;
 
@@ -106,6 +116,10 @@ pub(crate) fn projection_normalized_landmarks(
     }
     let rect_x_min = max_f32!(0.0, normalized_rect.x_center - normalized_rect.width * 0.5);
     let rect_y_min = max_f32!(0.0, normalized_rect.y_center - normalized_rect.height * 0.5);
+    let rect_x_max = min_f32!(1.0, normalized_rect.x_center + normalized_rect.width * 0.5);
+    let rect_y_max = min_f32!(1.0, normalized_rect.y_center + normalized_rect.height * 0.5);
+    let width = rect_x_max - rect_x_min;
+    let height = rect_y_max - rect_y_min;
 
     for l in landmarks.iter_mut() {
         if !ignore_rotation {
@@ -114,8 +128,8 @@ pub(crate) fn projection_normalized_landmarks(
             l.x = 0.5 + x * cos - y * sin;
             l.y = 0.5 + x * sin + y * cos;
         }
-        l.x = rect_x_min + l.x * normalized_rect.width;
-        l.y = rect_y_min + l.y * normalized_rect.height;
+        l.x = rect_x_min + l.x * width;
+        l.y = rect_y_min + l.y * height;
 
         l.z *= normalized_rect.width;
     }
