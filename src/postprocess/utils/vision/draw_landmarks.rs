@@ -117,6 +117,7 @@ pub fn draw_landmarks_with_options<I>(
     }
 
     for normalized_landmark in normalized_landmarks.iter().rev() {
+        check_threshold!(normalized_landmark, options);
         drawing::draw_filled_circle_mut(
             img,
             (

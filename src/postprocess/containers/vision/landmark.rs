@@ -1,3 +1,4 @@
+use super::NormalizedRect;
 use std::fmt::{Display, Formatter};
 use std::ops::{Deref, DerefMut};
 
@@ -84,5 +85,54 @@ impl Display for Landmarks {
             write!(f, "{}", l)?;
         }
         Ok(())
+    }
+}
+
+pub(crate) fn projection_normalized_landmarks(
+    landmarks: &mut NormalizedLandmarks,
+    normalized_rect: &NormalizedRect,
+    mut ignore_rotation: bool,
+) {
+    if normalized_rect.rotation.is_none() {
+        ignore_rotation = true;
+    }
+
+    let mut cos = 0.;
+    let mut sin = 0.;
+    if !ignore_rotation {
+        let angle = normalized_rect.rotation.unwrap();
+        cos = angle.cos();
+        sin = angle.sin();
+    }
+    let rect_x_min = max_f32!(0.0, normalized_rect.x_center - normalized_rect.width * 0.5);
+    let rect_y_min = max_f32!(0.0, normalized_rect.y_center - normalized_rect.height * 0.5);
+
+    for l in landmarks.iter_mut() {
+        if !ignore_rotation {
+            let x = l.x - 0.5;
+            let y = l.y - 0.5;
+            l.x = 0.5 + x * cos - y * sin;
+            l.y = 0.5 + x * sin + y * cos;
+        }
+        l.x = rect_x_min + l.x * normalized_rect.width;
+        l.y = rect_y_min + l.y * normalized_rect.height;
+
+        l.z *= normalized_rect.width;
+    }
+}
+
+pub(crate) fn projection_world_landmark(
+    landmarks: &mut Landmarks,
+    normalized_rect: &NormalizedRect,
+) {
+    if let Some(angle) = normalized_rect.rotation {
+        let cos = angle.cos();
+        let sin = angle.sin();
+        for l in landmarks.iter_mut() {
+            let x = cos * l.x - sin * l.y;
+            let y = sin * l.x + cos * l.y;
+            l.x = x;
+            l.y = y;
+        }
     }
 }

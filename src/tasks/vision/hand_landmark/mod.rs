@@ -180,12 +180,20 @@ impl<'model> HandLandmarkerSession<'model> {
                 self.hand_landmarker.landmarks_buf_index,
                 self.tensors_to_landmarks.landmark_buffer(),
             )?;
-            let hand_landmarks = self.tensors_to_landmarks.result(true);
+            let mut hand_landmarks = self.tensors_to_landmarks.result(true);
             self.execution_ctx.get_output(
                 self.hand_landmarker.world_landmarks_buf_index,
                 self.tensors_to_world_landmarks.landmark_buffer(),
             )?;
-            let hand_world_landmarks = self.tensors_to_world_landmarks.result(false);
+            let mut hand_world_landmarks = self.tensors_to_world_landmarks.result(false);
+
+            // do projection
+            crate::postprocess::projection_normalized_landmarks(
+                &mut hand_landmarks,
+                &hand_rect,
+                false,
+            );
+            crate::postprocess::projection_world_landmark(&mut hand_world_landmarks, &hand_rect);
 
             hand_landmark_results.push(HandLandmarkResult {
                 handedness: category,
