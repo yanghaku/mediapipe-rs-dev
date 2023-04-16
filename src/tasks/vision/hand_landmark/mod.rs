@@ -1,13 +1,14 @@
 mod builder;
+mod hand_landmark;
+mod result;
 
 use super::{HandDetector, HandDetectorBuilder, HandDetectorSession};
 pub use builder::HandLandmarkerBuilder;
+pub use hand_landmark::HandLandmark;
+pub use result::{HandLandmarkResult, HandLandmarkResults};
 
 use crate::model::ModelResourceTrait;
-use crate::postprocess::{
-    CategoriesFilter, HandLandmarkResult, HandLandmarkResults, NormalizedRect, TensorsToLandmarks,
-    VideoResultsIter,
-};
+use crate::postprocess::{CategoriesFilter, NormalizedRect, TensorsToLandmarks, VideoResultsIter};
 use crate::preprocess::vision::{ImageToTensor, ImageToTensorInfo, VideoData};
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 

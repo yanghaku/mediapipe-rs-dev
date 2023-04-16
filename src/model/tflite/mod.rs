@@ -20,6 +20,8 @@ pub(crate) struct TfLiteModelResource<'buf> {
     to_tensor_info: Vec<ToTensorInfo<'buf>>,
     output_name_map: HashMap<&'buf str, usize>,
     associated_files: Option<ZipFiles<'buf>>,
+    // now it only used for image segmentation
+    output_activation: Activation,
 }
 
 impl<'buf> TfLiteModelResource<'buf> {
@@ -42,6 +44,7 @@ impl<'buf> TfLiteModelResource<'buf> {
             to_tensor_info: Vec::new(),
             output_name_map: Default::default(),
             associated_files,
+            output_activation: Default::default(),
         };
         _self.parse_subgraph(&model)?;
         let metadata = Self::parse_model_metadata(&model)?;
@@ -245,6 +248,42 @@ impl<'buf> TfLiteModelResource<'buf> {
                 let output = output_tensors.get(i);
                 if let Some(name) = output.name() {
                     self.output_name_map.insert(name, i);
+                }
+            }
+        }
+
+        #[cfg(feature = "vision")]
+        if let Some(custom_metadata) = subgraph.custom_metadata() {
+            for i in 0..custom_metadata.len() {
+                let m = custom_metadata.get(i);
+                if let Some(name) = m.name() {
+                    if name == generated::CUSTOM_SEGMENTATION_METADATA_NAME {
+                        if let Some(data) = m.data() {
+                            let meta = generated::custom_img_segmentation::root_as_image_segmenter_options(data.bytes())?;
+                            let activation = meta.activation();
+
+                            self.output_activation = if activation
+                                == generated::custom_img_segmentation::Activation::NONE
+                            {
+                                Activation::None
+                            } else if activation
+                                == generated::custom_img_segmentation::Activation::SIGMOID
+                            {
+                                Activation::SIGMOID
+                            } else if activation
+                                == generated::custom_img_segmentation::Activation::SOFTMAX
+                            {
+                                Activation::SOFTMAX
+                            } else {
+                                return Err(crate::Error::ModelParseError(
+                                    format!(
+                                        "Invalid activation type found in CustomMetadata of ImageSegmenterOptions type: `{}`",
+                                        activation.0
+                                    ),
+                                ));
+                            };
+                        }
+                    }
                 }
             }
         }
@@ -676,6 +715,10 @@ impl<'buf> ModelResourceTrait for TfLiteModelResource<'buf> {
 
     fn to_tensor_info(&self, input_index: usize) -> Option<&ToTensorInfo> {
         self.to_tensor_info.get(input_index)
+    }
+
+    fn output_activation(&self) -> Activation {
+        self.output_activation
     }
 }
 

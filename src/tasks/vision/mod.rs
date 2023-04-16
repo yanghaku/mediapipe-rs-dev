@@ -2,15 +2,26 @@ mod gesture_recognition;
 mod hand_detection;
 mod hand_landmark;
 mod image_classification;
+mod image_segmentation;
 mod object_detection;
 
 pub use gesture_recognition::{
     GestureRecognizer, GestureRecognizerBuilder, GestureRecognizerSession,
 };
 pub use hand_detection::{HandDetector, HandDetectorBuilder, HandDetectorSession};
-pub use hand_landmark::{HandLandmarker, HandLandmarkerBuilder, HandLandmarkerSession};
+pub use hand_landmark::{
+    HandLandmark, HandLandmarker, HandLandmarkerBuilder, HandLandmarkerSession,
+};
 pub use image_classification::{ImageClassifier, ImageClassifierBuilder, ImageClassifierSession};
+pub use image_segmentation::{ImageSegmenter, ImageSegmenterBuilder, ImageSegmenterSession};
 pub use object_detection::{ObjectDetector, ObjectDetectorBuilder, ObjectDetectorSession};
+
+// re-export task results type
+pub mod results {
+    pub use super::gesture_recognition::{GestureRecognizerResult, GestureRecognizerResults};
+    pub use super::hand_landmark::{HandLandmarkResult, HandLandmarkResults};
+    pub use super::image_segmentation::ImageSegmenterResult;
+}
 
 /// Task session trait to process the video stream data
 pub trait TaskSession {

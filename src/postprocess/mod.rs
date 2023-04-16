@@ -4,7 +4,7 @@ pub use containers::*;
 
 /// stateless operators for tensor
 mod ops;
-pub use ops::QuantizationParameters;
+pub use ops::{Activation, QuantizationParameters};
 
 /// stateful objects, convert tensor to results
 mod processing;

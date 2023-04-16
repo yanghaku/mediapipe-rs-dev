@@ -12,6 +12,7 @@ CARGO_ROOT="$(dirname -- "$0")/../"
 
 TF_LITE_SCHEMAS_URL=(
   "https://raw.githubusercontent.com/google/mediapipe/master/mediapipe/tasks/metadata/metadata_schema.fbs"
+  "https://raw.githubusercontent.com/google/mediapipe/master/mediapipe/tasks/metadata/image_segmenter_metadata_schema.fbs"
   "https://raw.githubusercontent.com/tensorflow/tensorflow/master/tensorflow/lite/schema/schema.fbs"
 )
 TF_LITE_OUT_DIR="/src/model/tflite/generated"

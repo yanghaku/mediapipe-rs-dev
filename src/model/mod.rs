@@ -5,7 +5,7 @@ use std::collections::HashMap;
 pub(crate) use memory_text_file::MemoryTextFile;
 pub(crate) use zip::ZipFiles;
 
-use crate::postprocess::QuantizationParameters;
+use crate::postprocess::{Activation, QuantizationParameters};
 #[cfg(feature = "audio")]
 use crate::preprocess::audio::AudioToTensorInfo;
 #[cfg(feature = "text")]
@@ -50,6 +50,8 @@ pub(crate) trait ModelResourceTrait {
     fn output_bounding_box_properties(&self, index: usize, slice: &mut [usize]) -> bool;
 
     fn to_tensor_info(&self, input_index: usize) -> Option<&ToTensorInfo>;
+
+    fn output_activation(&self) -> Activation;
 }
 
 #[inline]

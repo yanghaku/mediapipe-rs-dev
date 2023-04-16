@@ -75,6 +75,39 @@ gesture_recognition_init() {
   popd
 }
 
+image_segmentation_init() {
+  image_segmentation_dir="${model_path}/image_segmentation"
+  mkdir -p "${image_segmentation_dir}"
+  pushd "${image_segmentation_dir}"
+
+  model_urls=("https://storage.googleapis.com/mediapipe-tasks/image_segmenter/deeplabv3.tflite"
+              "https://storage.googleapis.com/mediapipe-tasks/image_segmenter/selfie_segm_128_128_3.tflite"
+  )
+
+  for url in "${model_urls[@]}"; do
+    curl -sLO "${url}"
+  done
+
+  popd
+}
+
+image_embedding_init() {
+  image_embedding_dir="${model_path}/image_embedding"
+  mkdir -p "${image_embedding_dir}"
+  pushd "${image_embedding_dir}"
+
+  model_urls=("https://storage.googleapis.com/mediapipe-tasks/image_embedder/mobilenet_v3_small_075_224_embedder.tflite"
+              "https://storage.googleapis.com/mediapipe-tasks/image_embedder/mobilenet_v3_large_075_224_embedder.tflite"
+  )
+
+  for url in "${model_urls[@]}"; do
+    curl -sLO "${url}"
+  done
+
+  popd
+}
+
+
 audio_classification_init() {
   audio_classification_dir="${model_path}/audio_classification"
   mkdir -p "${audio_classification_dir}"
@@ -110,5 +143,7 @@ object_detection_init
 image_classification_init
 gesture_recognition_init
 hand_landmark_detection_init
+image_segmentation_init
+image_embedding_init
 audio_classification_init
 text_classification_init

@@ -1,7 +1,8 @@
 use std::fmt::{Display, Formatter};
 use std::ops::{Deref, DerefMut};
 
-use crate::postprocess::{ClassificationResult, HandLandmarkResult};
+use crate::postprocess::ClassificationResult;
+use crate::tasks::vision::results::HandLandmarkResult;
 
 /// The gesture recognition result from GestureRecognizer
 #[derive(Debug)]

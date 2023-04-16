@@ -22,8 +22,6 @@ macro_rules! max_f32 {
 
 mod crop_rect;
 mod detection_result;
-mod gesture_recognition_result;
-mod hand_landmark_result;
 mod key_point;
 mod landmark;
 mod normalized_rect;
@@ -32,8 +30,6 @@ mod results_iter;
 
 pub use crop_rect::*;
 pub use detection_result::*;
-pub use gesture_recognition_result::*;
-pub use hand_landmark_result::*;
 pub use key_point::*;
 pub use landmark::*;
 pub use normalized_rect::*;

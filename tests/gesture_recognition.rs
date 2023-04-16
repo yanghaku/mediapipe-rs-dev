@@ -63,11 +63,11 @@ fn test_gesture_recognition() {
 #[allow(unused)]
 fn draw_hand_landmarks(
     mut img: image::DynamicImage,
-    res: mediapipe_rs::postprocess::GestureRecognizerResults,
+    res: mediapipe_rs::tasks::vision::results::GestureRecognizerResults,
     out: &str,
 ) {
     let options = mediapipe_rs::postprocess::utils::DrawLandmarksOptions::default()
-        .connections(mediapipe_rs::postprocess::HandLandmark::CONNECTIONS);
+        .connections(mediapipe_rs::tasks::vision::HandLandmark::CONNECTIONS);
     mediapipe_rs::postprocess::utils::draw_landmarks_with_options(
         &mut img,
         &res.get(0).unwrap().hand_landmark.hand_landmarks,

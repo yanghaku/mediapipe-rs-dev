@@ -1,13 +1,15 @@
 mod builder;
 mod landmarks_to_tensor;
+mod result;
+
 pub use builder::GestureRecognizerBuilder;
 use landmarks_to_tensor::*;
+pub use result::{GestureRecognizerResult, GestureRecognizerResults};
 
 use super::{HandLandmarker, HandLandmarkerBuilder, HandLandmarkerSession};
 use crate::model::ModelResourceTrait;
 use crate::postprocess::{
-    CategoriesFilter, Category, GestureRecognizerResult, GestureRecognizerResults, Landmarks,
-    TensorsToClassification, VideoResultsIter,
+    CategoriesFilter, Category, Landmarks, TensorsToClassification, VideoResultsIter,
 };
 use crate::preprocess::vision::{ImageToTensor, VideoData};
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
