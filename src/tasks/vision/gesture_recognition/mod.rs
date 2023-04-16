@@ -1,7 +1,7 @@
 mod builder;
 mod landmarks_to_tensor;
 pub use builder::GestureRecognizerBuilder;
-use landmarks_to_tensor::landmarks_to_tensor;
+use landmarks_to_tensor::*;
 
 use super::{HandLandmarker, HandLandmarkerBuilder, HandLandmarkerSession};
 use crate::model::ModelResourceTrait;
@@ -215,14 +215,10 @@ impl<'model> GestureRecognizerSession<'model> {
                 &mut self.gesture_embed_hand_landmarks_input_buffer,
                 img_size,
                 0,
-                true,
             );
-            landmarks_to_tensor(
+            world_landmarks_to_tensor(
                 &hand_landmark.hand_world_landmarks,
                 &mut self.gesture_embed_hand_world_landmarks_input_buffer,
-                img_size,
-                0,
-                false,
             );
             self.gesture_embed_execution_ctx.set_input(
                 self.gesture_recognizer.gesture_embed_handedness_input_index,

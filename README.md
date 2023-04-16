@@ -30,8 +30,8 @@
 * [x] Object Detection
 * [x] Image Classification
 * [ ] Image segmentation
-* [ ] Gesture Recognition
-* [ ] Hand Landmark Detection
+* [x] Gesture Recognition
+* [x] Hand Landmark Detection
 * [ ] Image embedding
 * [x] Audio Classification
 * [x] Text Classification

@@ -51,7 +51,7 @@ fn test_gesture_recognition() {
     let gestures = &pointing_up_res.get(0).unwrap().gestures;
     eprintln!("{}", gestures);
 
-    let draw = true;
+    let draw = false;
     if draw {
         draw_hand_landmarks(thumbs_up_img, thumbs_up_res, "./target/thumbs_up.jpg");
         draw_hand_landmarks(thumbs_down_img, thumbs_down_res, "./target/thumbs_down.jpg");
