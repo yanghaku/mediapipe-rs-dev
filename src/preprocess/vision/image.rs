@@ -92,8 +92,10 @@ impl ImageToTensor for RgbImage {
             }
         };
 
-        if info.width != rgb_img.width() || info.height != rgb_img.height() {
-            tmp_rgb_img = imageops::resize(rgb_img, info.width, info.height, IMAGE_RESIZE_FILTER);
+        let width = info.width();
+        let height = info.height();
+        if width != rgb_img.width() || height != rgb_img.height() {
+            tmp_rgb_img = imageops::resize(rgb_img, width, height, IMAGE_RESIZE_FILTER);
             rgb_img = &tmp_rgb_img;
         }
 
@@ -122,8 +124,8 @@ where
     Container: std::ops::Deref<Target = [u8]>,
 {
     debug_assert!(
-        img.width() == info.width
-            && img.height() == info.height
+        img.width() == info.width()
+            && img.height() == info.height()
             && info.color_space != ImageColorSpaceType::GRAYSCALE
     );
 

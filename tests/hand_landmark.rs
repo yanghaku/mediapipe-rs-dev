@@ -48,4 +48,31 @@ fn test_hand_landmark() {
         "Left"
     );
     eprintln!("{}", hand_landmark_results);
+
+    let draw = false;
+    if draw {
+        draw_hand_landmarks(
+            img,
+            hand_landmark_results,
+            "./target/hand_landmark_test.jpg",
+        );
+    }
+}
+
+#[allow(unused)]
+fn draw_hand_landmarks(
+    mut img: image::DynamicImage,
+    hand_landmark_results: mediapipe_rs::tasks::vision::results::HandLandmarkResults,
+    path: &str,
+) {
+    let options = mediapipe_rs::postprocess::utils::DrawLandmarksOptions::default()
+        .connections(mediapipe_rs::tasks::vision::HandLandmark::CONNECTIONS);
+    for r in hand_landmark_results.iter() {
+        mediapipe_rs::postprocess::utils::draw_landmarks_with_options(
+            &mut img,
+            &r.hand_landmarks,
+            &options,
+        );
+    }
+    img.save(path).unwrap();
 }

@@ -60,10 +60,85 @@ pub struct ImageToTensorInfo {
     pub image_data_layout: ImageDataLayout,
     pub color_space: ImageColorSpaceType,
     pub tensor_type: TensorType,
-    pub width: u32,
-    pub height: u32,
+    pub tensor_shape: ImageLikeTensorShape,
     pub stats_min: Vec<f32>,
     pub stats_max: Vec<f32>,
     /// (mean,std), len can be 1 or 3
     pub normalization_options: (Vec<f32>, Vec<f32>),
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct ImageLikeTensorShape {
+    pub batch: usize,
+    pub width: usize,
+    pub height: usize,
+    pub channels: usize,
+}
+
+impl ImageToTensorInfo {
+    #[inline(always)]
+    pub fn width(&self) -> u32 {
+        self.tensor_shape.width as u32
+    }
+
+    #[inline(always)]
+    pub fn height(&self) -> u32 {
+        self.tensor_shape.height as u32
+    }
+}
+
+impl ImageLikeTensorShape {
+    pub fn parse(data_layout: ImageDataLayout, shape: &[usize]) -> Result<Self, Error> {
+        match shape.len() {
+            2 => Ok(Self {
+                batch: 1,
+                width: shape[1],
+                height: shape[0],
+                channels: 1,
+            }),
+            3 => match data_layout {
+                ImageDataLayout::NCHW | ImageDataLayout::CHWN => Ok(Self {
+                    batch: 1,
+                    width: shape[2],
+                    height: shape[1],
+                    channels: shape[0],
+                }),
+                ImageDataLayout::NHWC => Ok(Self {
+                    batch: 1,
+                    width: shape[1],
+                    height: shape[0],
+                    channels: shape[2],
+                }),
+            },
+            4 => match data_layout {
+                ImageDataLayout::NCHW => Ok(Self {
+                    batch: shape[0],
+                    width: shape[3],
+                    height: shape[2],
+                    channels: shape[1],
+                }),
+                ImageDataLayout::NHWC => Ok(Self {
+                    batch: shape[0],
+                    width: shape[2],
+                    height: shape[1],
+                    channels: shape[3],
+                }),
+                ImageDataLayout::CHWN => Ok(Self {
+                    batch: shape[3],
+                    width: shape[2],
+                    height: shape[1],
+                    channels: shape[0],
+                }),
+            },
+            _ => Err(Error::ArgumentError(format!(
+                "Expect shape len is 2, 3 or 4, but got shape `{:?}`",
+                shape
+            ))),
+        }
+    }
+
+    #[inline(always)]
+    pub fn elem_size(&self) -> usize {
+        self.batch * self.width * self.height * self.channels
+    }
 }

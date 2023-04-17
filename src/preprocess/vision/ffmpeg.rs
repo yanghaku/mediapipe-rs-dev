@@ -110,7 +110,9 @@ impl<'a> ImageToTensor for FFMpegFrame<'a> {
             desc.extend(
                 format!(
                     "[s_in];[s_in]scale={}:{}[f];[f]format=pix_fmts={}[out];[out]buffersink",
-                    to_tensor_info.width, to_tensor_info.height, out_format
+                    to_tensor_info.width(),
+                    to_tensor_info.height(),
+                    out_format
                 )
                 .chars(),
             );
@@ -134,8 +136,8 @@ impl<'a> ImageToTensor for FFMpegFrame<'a> {
             let scale_key = ScaleKey {
                 src_w: src_width,
                 src_h: src_height,
-                dst_w: to_tensor_info.width,
-                dst_h: to_tensor_info.height,
+                dst_w: to_tensor_info.width(),
+                dst_h: to_tensor_info.height(),
                 dst_format: to_tensor_info.color_space,
             };
             let src_format = self.0.source.frame.format();
@@ -152,8 +154,8 @@ impl<'a> ImageToTensor for FFMpegFrame<'a> {
         match to_tensor_info.color_space {
             ImageColorSpaceType::RGB | ImageColorSpaceType::UNKNOWN => {
                 let img = image::ImageBuffer::<image::Rgb<u8>, &[u8]>::from_raw(
-                    to_tensor_info.width,
-                    to_tensor_info.height,
+                    to_tensor_info.width(),
+                    to_tensor_info.height(),
                     data,
                 )
                 .unwrap();

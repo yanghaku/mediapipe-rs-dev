@@ -298,9 +298,12 @@ impl<'buf> TfLiteModelResource<'buf> {
         input: &tflite_metadata::TensorMetadata<'buf>,
         props: tflite_metadata::ImageProperties<'buf>,
     ) -> Result<(), Error> {
-        let (height, width) = if let Some(shape) = self.input_shape.get(i) {
-            if shape.len() == 4 && shape[0] == 1 && (shape[3] == 3 || shape[3] == 1) {
-                (shape[1] as u32, shape[2] as u32)
+        let tensor_shape = if let Some(shape) = self.input_shape.get(i) {
+            if let Ok(s) = crate::preprocess::vision::ImageLikeTensorShape::parse(
+                ImageDataLayout::NHWC,
+                shape.as_slice(),
+            ) {
+                s
             } else {
                 return Ok(());
             }
@@ -351,8 +354,7 @@ impl<'buf> TfLiteModelResource<'buf> {
             image_data_layout: ImageDataLayout::NHWC,
             color_space,
             tensor_type: self.input_types.get(i).unwrap().clone(),
-            width,
-            height,
+            tensor_shape,
             stats_min,
             stats_max,
             normalization_options,

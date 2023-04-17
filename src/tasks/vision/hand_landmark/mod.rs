@@ -63,7 +63,7 @@ impl HandLandmarker {
         let mut tensors_to_landmarks =
             TensorsToLandmarks::new(Self::NUM_LANDMARKS, landmarks_out, landmarks_shape)?;
         tensors_to_landmarks
-            .set_image_size(image_to_tensor_info.width, image_to_tensor_info.height);
+            .set_image_size(image_to_tensor_info.width(), image_to_tensor_info.height());
         tensors_to_landmarks.set_normalize_z(Self::LANDMARKS_NORMALIZE_Z);
 
         let world_landmarks_out = get_type_and_quantization!(self, self.world_landmarks_buf_index);

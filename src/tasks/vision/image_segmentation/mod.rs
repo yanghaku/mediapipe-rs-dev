@@ -1,7 +1,7 @@
 mod builder;
 mod result;
 pub use builder::ImageSegmenterBuilder;
-pub use result::ImageSegmenterResult;
+pub use result::ImageSegmentationResult;
 
 use crate::model::ModelResourceTrait;
 use crate::postprocess::{Activation, TensorsToSegmentation, VideoResultsIter};
@@ -65,8 +65,9 @@ impl ImageSegmenter {
         let tensors_to_segmentation = TensorsToSegmentation::new(
             self.output_activation,
             get_type_and_quantization!(self, 0),
+            input_to_tensor_info.image_data_layout,
             output_shape,
-        );
+        )?;
         let execution_ctx = self.graph.init_execution_context()?;
         Ok(ImageSegmenterSession {
             execution_ctx,
@@ -75,12 +76,14 @@ impl ImageSegmenter {
             input_tensor_shape,
             input_tensor_buf: vec![0; tensor_bytes!(self.input_tensor_type, input_tensor_shape)],
             input_tensor_type: self.input_tensor_type,
+            output_confidence: self.build_options.output_confidence_masks,
+            output_category: self.build_options.output_category_mask,
         })
     }
 
     /// Segment one image.
     #[inline(always)]
-    pub fn segment(&self, input: &impl ImageToTensor) -> Result<ImageSegmenterResult, Error> {
+    pub fn segment(&self, input: &impl ImageToTensor) -> Result<ImageSegmentationResult, Error> {
         self.new_session()?.segment(input)
     }
 
@@ -89,7 +92,7 @@ impl ImageSegmenter {
     pub fn segment_for_video(
         &self,
         video_data: impl VideoData,
-    ) -> Result<Vec<ImageSegmenterResult>, Error> {
+    ) -> Result<Vec<ImageSegmentationResult>, Error> {
         self.new_session()?.segment_for_video(video_data)?.to_vec()
     }
 }
@@ -103,11 +106,14 @@ pub struct ImageSegmenterSession<'model> {
     input_tensor_shape: &'model [usize],
     input_tensor_buf: Vec<u8>,
     input_tensor_type: TensorType,
+
+    output_category: bool,
+    output_confidence: bool,
 }
 
 impl<'model> ImageSegmenterSession<'model> {
     #[inline(always)]
-    fn compute(&mut self) -> Result<ImageSegmenterResult, Error> {
+    fn compute(&mut self, img_size: (u32, u32)) -> Result<ImageSegmentationResult, Error> {
         self.execution_ctx.set_input(
             0,
             self.input_tensor_type,
@@ -120,18 +126,61 @@ impl<'model> ImageSegmenterSession<'model> {
         let output_buffer = self.tensors_to_segmentation.tenor_buffer();
         self.execution_ctx.get_output(0, output_buffer)?;
 
-        todo!()
+        let category_mask = if self.output_category {
+            let mask = self.tensors_to_segmentation.category_mask();
+            if mask.dimensions() == img_size {
+                Some(mask)
+            } else {
+                Some(image::imageops::resize(
+                    &mask,
+                    img_size.0,
+                    img_size.1,
+                    image::imageops::FilterType::Triangle,
+                ))
+            }
+        } else {
+            None
+        };
+        let confidence_masks = if self.output_confidence {
+            let masks = self.tensors_to_segmentation.confidence_masks();
+            if masks[0].dimensions() == img_size {
+                Some(masks)
+            } else {
+                Some(
+                    masks
+                        .iter()
+                        .map(|img| {
+                            image::imageops::resize(
+                                img,
+                                img_size.0,
+                                img_size.1,
+                                image::imageops::FilterType::Triangle,
+                            )
+                        })
+                        .collect(),
+                )
+            }
+        } else {
+            None
+        };
+        Ok(ImageSegmentationResult {
+            confidence_masks,
+            category_mask,
+        })
     }
 
     /// Segment one image, reuse this session data to speedup.
     #[inline(always)]
-    pub fn segment(&mut self, input: &impl ImageToTensor) -> Result<ImageSegmenterResult, Error> {
+    pub fn segment(
+        &mut self,
+        input: &impl ImageToTensor,
+    ) -> Result<ImageSegmentationResult, Error> {
         input.to_tensor(
             self.input_to_tensor_info,
             &Default::default(),
             &mut self.input_tensor_buf,
         )?;
-        self.compute()
+        self.compute(input.image_size())
     }
 
     /// Segment input video stream use this session.
@@ -146,7 +195,7 @@ impl<'model> ImageSegmenterSession<'model> {
 }
 
 impl<'model> super::TaskSession for ImageSegmenterSession<'model> {
-    type Result = ImageSegmenterResult;
+    type Result = ImageSegmentationResult;
 
     #[inline]
     fn process_next(
@@ -170,7 +219,7 @@ impl<'model> super::TaskSession for ImageSegmenterSession<'model> {
                 process_options,
                 &mut self.input_tensor_buf,
             )?;
-            return Ok(Some(self.compute()?));
+            return Ok(Some(self.compute(frame.image_size())?));
         }
         Ok(None)
     }

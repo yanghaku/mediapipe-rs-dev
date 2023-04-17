@@ -20,7 +20,7 @@ pub use object_detection::{ObjectDetector, ObjectDetectorBuilder, ObjectDetector
 pub mod results {
     pub use super::gesture_recognition::{GestureRecognizerResult, GestureRecognizerResults};
     pub use super::hand_landmark::{HandLandmarkResult, HandLandmarkResults};
-    pub use super::image_segmentation::ImageSegmenterResult;
+    pub use super::image_segmentation::ImageSegmentationResult;
 }
 
 /// Task session trait to process the video stream data

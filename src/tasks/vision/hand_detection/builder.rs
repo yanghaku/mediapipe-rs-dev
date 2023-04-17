@@ -68,7 +68,9 @@ impl HandDetectorBuilder {
         // generate anchors
         // todo: read info from metadata
         let num_box = 2016;
-        let anchors = SsdAnchorsBuilder::new(img_info.width, img_info.height, 0.1484375, 0.75, 4)
+        let width = img_info.width();
+        let height = img_info.height();
+        let anchors = SsdAnchorsBuilder::new(width, height, 0.1484375, 0.75, 4)
             .anchor_offset_x(0.5)
             .anchor_offset_y(0.5)
             .strides(vec![8, 16, 16, 16])
