@@ -28,12 +28,8 @@ impl AudioClassifier {
                 .try_to_audio()?;
         let input_tensor_shape =
             model_resource_check_and_get_impl!(self.model_resource, input_tensor_shape, 0);
-        let output_byte_size =
-            model_resource_check_and_get_impl!(self.model_resource, output_tensor_byte_size, 0);
-        let output_tensor_type =
-            model_resource_check_and_get_impl!(self.model_resource, output_tensor_type, 0);
-        let quantization_parameters = self.model_resource.output_tensor_quantization_parameters(0);
-        check_quantization_parameters!(output_tensor_type, quantization_parameters, 0);
+        let output_tensor_shape =
+            model_resource_check_and_get_impl!(self.model_resource, output_tensor_shape, 0);
 
         let execution_ctx = self.graph.init_execution_context()?;
         let labels = self.model_resource.output_tensor_labels_locale(
@@ -53,9 +49,8 @@ impl AudioClassifier {
         tensors_to_classification.add_classification_options(
             categories_filter,
             self.build_options.classification_options.max_results,
-            vec![0; output_byte_size],
-            output_tensor_type,
-            quantization_parameters,
+            get_type_and_quantization!(self.model_resource, 0),
+            output_tensor_shape,
         );
         Ok(AudioClassifierSession {
             classifier: self,

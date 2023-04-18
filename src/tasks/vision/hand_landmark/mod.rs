@@ -54,7 +54,8 @@ impl HandLandmarker {
         let categories_filter =
             CategoriesFilter::new_full(f32::MIN, hand_labels, Some(hand_labels));
 
-        let landmarks_out = get_type_and_quantization!(self, self.landmarks_buf_index);
+        let landmarks_out =
+            get_type_and_quantization!(self.model_resource, self.landmarks_buf_index);
         let landmarks_shape = model_resource_check_and_get_impl!(
             self.model_resource,
             output_tensor_shape,
@@ -66,7 +67,8 @@ impl HandLandmarker {
             .set_image_size(image_to_tensor_info.width(), image_to_tensor_info.height());
         tensors_to_landmarks.set_normalize_z(Self::LANDMARKS_NORMALIZE_Z);
 
-        let world_landmarks_out = get_type_and_quantization!(self, self.world_landmarks_buf_index);
+        let world_landmarks_out =
+            get_type_and_quantization!(self.model_resource, self.world_landmarks_buf_index);
         let world_landmarks_shape = model_resource_check_and_get_impl!(
             self.model_resource,
             output_tensor_shape,

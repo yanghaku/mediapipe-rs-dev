@@ -54,8 +54,8 @@ impl HandDetector {
             &self.anchors,
             min_detection_confidence,
             self.num_hands(),
-            get_type_and_quantization!(self, self.location_buf_index),
-            get_type_and_quantization!(self, self.score_buf_index),
+            get_type_and_quantization!(self.model_resource, self.location_buf_index),
+            get_type_and_quantization!(self.model_resource, self.score_buf_index),
         );
 
         // config options

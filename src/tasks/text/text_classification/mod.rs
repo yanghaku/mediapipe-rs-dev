@@ -34,10 +34,8 @@ impl TextClassifier {
             input_tensor_bufs.push(vec![0; bytes]);
         }
 
-        let output_byte_size =
-            model_resource_check_and_get_impl!(self.model_resource, output_tensor_byte_size, 0);
-        let output_tensor_type =
-            model_resource_check_and_get_impl!(self.model_resource, output_tensor_type, 0);
+        let output_tensor_shape =
+            model_resource_check_and_get_impl!(self.model_resource, output_tensor_shape, 0);
 
         let execution_ctx = self.graph.init_execution_context()?;
         let labels = self.model_resource.output_tensor_labels_locale(
@@ -57,9 +55,8 @@ impl TextClassifier {
         tensors_to_classification.add_classification_options(
             categories_filter,
             self.build_options.classification_options.max_results,
-            vec![0; output_byte_size],
-            output_tensor_type,
-            None,
+            get_type_and_quantization!(self.model_resource, 0),
+            output_tensor_shape,
         );
 
         Ok(TextClassifierSession {

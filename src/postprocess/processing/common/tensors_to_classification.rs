@@ -21,9 +21,8 @@ impl<'a> TensorsToClassification<'a> {
         &mut self,
         categories_filter: CategoriesFilter<'a>,
         max_results: i32,
-        data_buffer: Vec<u8>,
-        tensor_type: TensorType,
-        quantization_parameters: Option<QuantizationParameters>,
+        buffer_config: (TensorType, Option<QuantizationParameters>),
+        buffer_shape: &[usize],
     ) {
         let max_results = if max_results < 0 {
             usize::MAX
@@ -33,10 +32,20 @@ impl<'a> TensorsToClassification<'a> {
         self.categories_filters.push(categories_filter);
         self.max_results.push(max_results);
 
-        self.add_output_cfg(data_buffer, tensor_type, quantization_parameters);
+        let elem_size = buffer_shape.iter().fold(1, |a, b| a * b);
+        self.outputs
+            .push(empty_output_buffer!(buffer_config, elem_size));
     }
 
-    output_buffer_impl!();
+    /// index must be valid. or panic!
+    #[inline(always)]
+    pub(crate) fn output_buffer(&mut self, index: usize) -> &mut [u8] {
+        self.outputs
+            .get_mut(index)
+            .unwrap()
+            .data_buffer
+            .as_mut_slice()
+    }
 
     #[inline]
     pub(crate) fn result(&mut self, timestamp_ms: Option<u64>) -> ClassificationResult {
@@ -64,7 +73,7 @@ impl<'a> TensorsToClassification<'a> {
                 categories.drain(max_results..);
             }
             res.classifications.push(Classifications {
-                head_index: 0,
+                head_index: id,
                 head_name: None,
                 categories,
             })

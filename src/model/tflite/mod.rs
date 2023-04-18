@@ -15,7 +15,6 @@ pub(crate) struct TfLiteModelResource<'buf> {
     output_shape: Vec<Vec<usize>>,
     input_types: Vec<TensorType>,
     output_types: Vec<TensorType>,
-    output_bytes_size: Vec<usize>,
     output_quantization_parameters: Vec<Option<QuantizationParameters>>,
     to_tensor_info: Vec<ToTensorInfo<'buf>>,
     output_name_map: HashMap<&'buf str, usize>,
@@ -39,7 +38,6 @@ impl<'buf> TfLiteModelResource<'buf> {
             output_shape: Vec::new(),
             input_types: Vec::new(),
             output_types: Vec::new(),
-            output_bytes_size: Vec::new(),
             output_quantization_parameters: Vec::new(),
             to_tensor_info: Vec::new(),
             output_name_map: Default::default(),
@@ -119,7 +117,6 @@ impl<'buf> TfLiteModelResource<'buf> {
                 }
                 let t = tensors.get(index);
                 let tensor_type = Self::tflite_type_parse(t.type_())?;
-                let mut bytes = tensor_byte_size!(tensor_type);
                 self.output_types.push(tensor_type);
 
                 if let Some(s) = t.shape() {
@@ -133,7 +130,6 @@ impl<'buf> TfLiteModelResource<'buf> {
                                 i, d
                             )));
                         }
-                        bytes *= val;
                         shape.push(val);
                     }
                     self.output_shape.push(shape);
@@ -143,7 +139,6 @@ impl<'buf> TfLiteModelResource<'buf> {
                         i
                     )));
                 }
-                self.output_bytes_size.push(bytes);
 
                 if let Some(q) = t.quantization() {
                     if let (Some(z), Some(s)) = (q.zero_point(), q.scale()) {
@@ -624,10 +619,6 @@ impl<'buf> ModelResourceTrait for TfLiteModelResource<'buf> {
 
     fn output_tensor_shape(&self, index: usize) -> Option<&[usize]> {
         self.output_shape.get(index).map(|v| v.as_slice())
-    }
-
-    fn output_tensor_byte_size(&self, index: usize) -> Option<usize> {
-        self.output_bytes_size.get(index).cloned()
     }
 
     fn output_tensor_name_to_index(&self, name: &'static str) -> Option<usize> {

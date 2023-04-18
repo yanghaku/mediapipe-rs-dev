@@ -86,16 +86,3 @@ macro_rules! detection_task_session_impl {
         }
     };
 }
-
-macro_rules! get_type_and_quantization {
-    ( $self:ident, $index:expr ) => {{
-        let t =
-            model_resource_check_and_get_impl!($self.model_resource, output_tensor_type, $index);
-        let q = $self
-            .model_resource
-            .output_tensor_quantization_parameters($index);
-        check_quantization_parameters!(t, q, $index);
-
-        (t, q)
-    }};
-}

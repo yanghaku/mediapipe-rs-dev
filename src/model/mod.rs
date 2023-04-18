@@ -33,8 +33,6 @@ pub(crate) trait ModelResourceTrait {
 
     fn output_tensor_shape(&self, index: usize) -> Option<&[usize]>;
 
-    fn output_tensor_byte_size(&self, index: usize) -> Option<usize>;
-
     fn output_tensor_name_to_index(&self, name: &'static str) -> Option<usize>;
 
     fn output_tensor_quantization_parameters(&self, index: usize)
@@ -118,6 +116,15 @@ macro_rules! check_quantization_parameters {
             )));
         }
     };
+}
+
+macro_rules! get_type_and_quantization {
+    ( $model_resource:expr, $index:expr ) => {{
+        let t = model_resource_check_and_get_impl!($model_resource, output_tensor_type, $index);
+        let q = $model_resource.output_tensor_quantization_parameters($index);
+        check_quantization_parameters!(t, q, $index);
+        (t, q)
+    }};
 }
 
 macro_rules! search_file_in_zip {

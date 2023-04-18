@@ -59,14 +59,14 @@ impl ImageSegmenter {
                 .try_to_image()?;
         let input_tensor_shape =
             model_resource_check_and_get_impl!(self.model_resource, input_tensor_shape, 0);
-        let output_shape =
+        let output_tensor_shape =
             model_resource_check_and_get_impl!(self.model_resource, output_tensor_shape, 0);
 
         let tensors_to_segmentation = TensorsToSegmentation::new(
             self.output_activation,
-            get_type_and_quantization!(self, 0),
+            get_type_and_quantization!(self.model_resource, 0),
             input_to_tensor_info.image_data_layout,
-            output_shape,
+            output_tensor_shape,
         )?;
         let execution_ctx = self.graph.init_execution_context()?;
         Ok(ImageSegmenterSession {
@@ -87,7 +87,7 @@ impl ImageSegmenter {
         self.new_session()?.segment(input)
     }
 
-    /// Segment audio stream, and collect all results to [`Vec`]
+    /// Segment video stream, and collect all results to [`Vec`]
     #[inline(always)]
     pub fn segment_for_video(
         &self,

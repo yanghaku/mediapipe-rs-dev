@@ -78,39 +78,6 @@ macro_rules! realloc_output_buffer {
     };
 }
 
-macro_rules! output_buffer_impl {
-    () => {
-        /// index must be valid. or panic!
-        #[inline(always)]
-        pub(crate) fn output_buffer(&mut self, index: usize) -> &mut [u8] {
-            self.outputs
-                .get_mut(index)
-                .unwrap()
-                .data_buffer
-                .as_mut_slice()
-        }
-
-        #[inline(always)]
-        fn add_output_cfg(
-            &mut self,
-            data_buffer: Vec<u8>,
-            tensor_type: TensorType,
-            quantization_parameters: Option<QuantizationParameters>,
-        ) {
-            let q = if let Some(p) = quantization_parameters {
-                Some((p, vec![0f32; data_buffer.len()]))
-            } else {
-                None
-            };
-            self.outputs.push(OutputBuffer {
-                data_buffer,
-                tensor_type,
-                quantization_parameters: q,
-            });
-        }
-    };
-}
-
 mod common;
 pub(crate) use common::*;
 

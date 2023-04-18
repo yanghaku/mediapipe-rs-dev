@@ -36,12 +36,8 @@ pub struct GestureRecognizer {
 
 macro_rules! add_tensors_to_classifications {
     ( $tensors_to_classification:ident, $self:ident, $resource:expr, $classify_option_field:ident, ) => {{
-        let output_byte_size =
-            model_resource_check_and_get_impl!($resource, output_tensor_byte_size, 0);
-        let output_tensor_type =
-            model_resource_check_and_get_impl!($resource, output_tensor_type, 0);
-        let quantization_parameters = $resource.output_tensor_quantization_parameters(0);
-        check_quantization_parameters!(output_tensor_type, quantization_parameters, 0);
+        let output_tensor_shape =
+            model_resource_check_and_get_impl!($resource, output_tensor_shape, 0);
         let labels = $resource.output_tensor_labels_locale(
             0,
             $self
@@ -58,9 +54,8 @@ macro_rules! add_tensors_to_classifications {
         $tensors_to_classification.add_classification_options(
             categories_filter,
             $self.build_options.$classify_option_field.max_results,
-            vec![0; output_byte_size],
-            output_tensor_type,
-            quantization_parameters,
+            get_type_and_quantization!($resource, 0),
+            output_tensor_shape,
         );
     };};
 }
@@ -163,7 +158,7 @@ impl GestureRecognizer {
         self.new_session()?.recognize(input)
     }
 
-    /// Recognize audio stream, and collect all results to [`Vec`]
+    /// Recognize video stream, and collect all results to [`Vec`]
     #[inline(always)]
     pub fn recognize_for_video(
         &self,

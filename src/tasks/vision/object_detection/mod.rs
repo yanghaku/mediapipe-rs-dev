@@ -49,9 +49,9 @@ impl ObjectDetector {
         let mut tensors_to_detection = TensorsToDetection::new(
             categories_filter,
             self.build_options.classification_options.max_results,
-            get_type_and_quantization!(self, self.location_buf_index),
-            get_type_and_quantization!(self, self.categories_buf_index),
-            get_type_and_quantization!(self, self.score_buf_index),
+            get_type_and_quantization!(self.model_resource, self.location_buf_index),
+            get_type_and_quantization!(self.model_resource, self.categories_buf_index),
+            get_type_and_quantization!(self.model_resource, self.score_buf_index),
         );
         tensors_to_detection.set_box_indices(&self.bound_box_properties);
 

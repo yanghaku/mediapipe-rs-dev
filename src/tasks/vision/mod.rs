@@ -2,6 +2,7 @@ mod gesture_recognition;
 mod hand_detection;
 mod hand_landmark;
 mod image_classification;
+mod image_embedding;
 mod image_segmentation;
 mod object_detection;
 
@@ -13,6 +14,7 @@ pub use hand_landmark::{
     HandLandmark, HandLandmarker, HandLandmarkerBuilder, HandLandmarkerSession,
 };
 pub use image_classification::{ImageClassifier, ImageClassifierBuilder, ImageClassifierSession};
+pub use image_embedding::{ImageEmbedder, ImageEmbedderBuilder, ImageEmbedderSession};
 pub use image_segmentation::{ImageSegmenter, ImageSegmenterBuilder, ImageSegmenterSession};
 pub use object_detection::{ObjectDetector, ObjectDetectorBuilder, ObjectDetectorSession};
 
