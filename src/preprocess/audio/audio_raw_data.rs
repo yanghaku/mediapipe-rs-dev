@@ -13,6 +13,7 @@ where
     Take(Vec<Vec<f32>>),
 }
 
+/// Raw Audio matrix data.
 pub struct AudioRawData<'a, T = Vec<Vec<f32>>, E = Vec<f32>>
 where
     T: AsRef<[E]> + 'a,
@@ -29,6 +30,7 @@ where
     T: AsRef<[E]> + 'a,
     E: AsRef<[f32]>,
 {
+    /// Create a new reference for data matrix.
     pub fn new_ref(raw_major_matrix: &'a T, sample_rate: usize) -> Result<Self, Error> {
         Self::check(raw_major_matrix)?;
         Ok(Self {
@@ -39,6 +41,7 @@ where
         })
     }
 
+    /// Create a new owned data for matrix.
     pub fn new(raw_major_matrix: T, sample_rate: usize) -> Result<Self, Error> {
         Self::check(&raw_major_matrix)?;
         Ok(Self {
@@ -52,17 +55,19 @@ where
         })
     }
 
-    /// reset the state, will read from start
+    /// Reset the state, will read from start.
     #[inline(always)]
     pub fn reset(&mut self) {
         self.now_index = 0;
     }
 
+    /// Get sample rate.
     #[inline(always)]
     pub fn sample_rate(&self) -> usize {
         self.sample_rate
     }
 
+    /// Get the number of channels.
     #[inline(always)]
     pub fn num_channels(&self) -> usize {
         match &self.matrix {
@@ -72,6 +77,7 @@ where
         }
     }
 
+    /// Check whether the raw major matrix can be used as Audio Raw Data.
     #[inline(always)]
     pub fn check(raw_major_matrix: &T) -> Result<(), Error> {
         let channels = raw_major_matrix.as_ref();

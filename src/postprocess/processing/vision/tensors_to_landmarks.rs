@@ -26,15 +26,15 @@ impl Default for ToLandmarksOptions {
 }
 
 pub(crate) struct TensorsToLandmarks {
-    num_landmarks: u32,
-    num_dimensions: u32,
+    num_landmarks: usize,
+    num_dimensions: usize,
     landmark_buffer: OutputBuffer,
     options: ToLandmarksOptions,
 }
 
 impl TensorsToLandmarks {
     pub fn new(
-        num_landmarks: u32,
+        num_landmarks: usize,
         landmark_buf: (TensorType, Option<QuantizationParameters>),
         landmark_shape: &[usize],
     ) -> Result<Self, crate::Error> {
@@ -42,7 +42,7 @@ impl TensorsToLandmarks {
         for s in landmark_shape {
             elem_size *= s;
         }
-        let num_dimensions = elem_size as u32 / num_landmarks;
+        let num_dimensions = elem_size / num_landmarks;
         if num_dimensions == 0 {
             return Err(crate::Error::ModelInconsistentError(
                 format!("Expect tensor element size > num landmarks, but got tensor shape: `{:?}`, num landmarks: `{}",
@@ -87,7 +87,7 @@ impl TensorsToLandmarks {
 
     pub fn result(&mut self, normalized: bool) -> Landmarks {
         let mut landmark_buf = output_buffer_mut_slice!(self.landmark_buffer);
-        let mut landmarks = Vec::with_capacity(self.num_landmarks as usize);
+        let mut landmarks = Vec::with_capacity(self.num_landmarks);
 
         let mut index = 0;
         let num_dimensions = self.num_dimensions as usize;

@@ -3,7 +3,8 @@ use crate::model::ModelResourceTrait;
 use crate::tasks::common::{BaseTaskOptions, ClassificationOptions};
 use crate::Error;
 
-/// Configure the properties of a new Audio classification task.
+/// Configure the build options of a new **Audio Classification** task instance.
+///
 /// Methods can be chained on it in order to configure it.
 pub struct AudioClassifierBuilder {
     pub(super) base_task_options: BaseTaskOptions,
@@ -21,6 +22,7 @@ impl Default for AudioClassifierBuilder {
 }
 
 impl AudioClassifierBuilder {
+    /// Create a new builder with default options.
     #[inline(always)]
     pub fn new() -> Self {
         Self {
@@ -33,6 +35,7 @@ impl AudioClassifierBuilder {
 
     classification_options_impl!();
 
+    /// Use the build options to create a new task instance.
     #[inline]
     pub fn finalize(mut self) -> Result<AudioClassifier, Error> {
         classification_options_check!(self, classification_options);

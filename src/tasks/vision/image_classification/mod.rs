@@ -8,7 +8,7 @@ use crate::postprocess::{
 use crate::preprocess::vision::{ImageToTensor, ImageToTensorInfo, VideoData};
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
-/// Performs classification on images.
+/// Performs classification on images and video frames.
 pub struct ImageClassifier {
     build_options: ImageClassifierBuilder,
     model_resource: Box<dyn ModelResourceTrait>,
@@ -21,6 +21,7 @@ impl ImageClassifier {
 
     classification_options_get_impl!();
 
+    /// Create a new task session that contains processing buffers and can do inference.
     #[inline(always)]
     pub fn new_session(&self) -> Result<ImageClassifierSession, Error> {
         let input_to_tensor_info =
@@ -63,13 +64,13 @@ impl ImageClassifier {
         })
     }
 
-    /// Classify one image.
+    /// Classify one image using a new session.
     #[inline(always)]
     pub fn classify(&self, input: &impl ImageToTensor) -> Result<ClassificationResult, Error> {
         self.new_session()?.classify(input)
     }
 
-    /// Classify one image with options to specify the region of interest.
+    /// Classify one image using a new session with options to specify the region of interest.
     #[inline(always)]
     pub fn classify_with_options(
         &self,
@@ -80,7 +81,7 @@ impl ImageClassifier {
             .classify_with_options(input, process_options)
     }
 
-    /// Classify video stream, and collect all results to [`Vec`]
+    /// Classify video stream using a new task session, and collect all results to [`Vec`].
     #[inline(always)]
     pub fn classify_for_video(
         &self,
@@ -90,7 +91,8 @@ impl ImageClassifier {
     }
 }
 
-/// Session to run inference. If process multiple images, use it can get better performance.
+/// Session to run inference.
+/// If process multiple images or videos, reuse it can get better performance.
 ///
 /// ```rust
 /// use mediapipe_rs::tasks::vision::ImageClassifier;
@@ -148,7 +150,7 @@ impl<'model> ImageClassifierSession<'model> {
         self.compute(input.timestamp_ms())
     }
 
-    /// Classify one image, reuse this session data to speedup.
+    /// Classify one image with region-of-interest options, reuse this session data to speedup.
     #[inline(always)]
     pub fn classify_with_options(
         &mut self,

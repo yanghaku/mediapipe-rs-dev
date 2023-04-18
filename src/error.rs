@@ -1,6 +1,6 @@
 use wasi_nn_safe::{thiserror, Error as WasiNNError};
 
-/// Mediapipe-rs API error enum.
+/// MediaPipe-rs API error enum.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("IO Error: {0}")]

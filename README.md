@@ -1,5 +1,5 @@
 <div align="center">
-  <h1><code>mediapipe-rs</code></h1>
+  <h1><code>MediaPipe-rs</code></h1>
   <p>
     <a href="https://github.com/yanghaku/mediapipe-rs/actions?query=workflow%3ACI">
       <img src="https://github.com/yanghaku/mediapipe-rs/workflows/CI/badge.svg" alt="CI status" height="20"/>
@@ -13,7 +13,7 @@
   </p>
 </div>
 
-# A Rust library for mediapipe tasks for WasmEdge WASI-NN
+# A Rust library for MediaPipe tasks for WasmEdge WASI-NN
 
 ## Introduction
 
@@ -29,12 +29,63 @@
 
 * [x] Object Detection
 * [x] Image Classification
-* [ ] Image segmentation
+* [x] Image segmentation
 * [x] Gesture Recognition
 * [x] Hand Landmark Detection
-* [ ] Image embedding
+* [x] Image embedding
 * [x] Audio Classification
 * [x] Text Classification
+
+## Task APIs
+
+Every task has three types: ```XxxBuilder```, ```Xxx```, ```XxxSession```. (``Xxx`` is the task name)
+
+* ```XxxBuilder``` is used to create a task instance ```Xxx```, which has many options to set.
+
+  example: use ```ImageClassifierBuilder``` to build a ```ImageClassifier``` task.
+  ```
+  let classifier = ImageClassifierBuilder::new()
+        .model_asset_path(model_path) // set model path
+        .max_results(3) // set max result
+        .category_deny_list(vec!["denied label".into()]) // set deny list
+        .gpu() // set running device
+        .finalize()?; // create a image classifier
+  ```
+* ```Xxx``` is a task instance, which contains task information and model information.
+
+  example: use ```ImageClassifier``` to create a new ```ImageClassifierSession```
+  ```
+  let classifier_session = classifier.new_session()?;
+  ```
+* ```XxxSession``` is a running session to perform pre-process, inference, and post-process, which has buffers to store
+  mid-results.
+
+  example: use ```ImageClassifierSession``` to run the image classification task and return classification results:
+  ```
+  let classification_result = classifier_session.classify(&image::open(img_path)?)?;
+  ```
+  **Note**: the session can be reused to speed up, if the code just uses the session once, it can use the task's wrapper
+  function to simplify.
+  ```
+  // let classifier_session = classifier.new_session()?;
+  // let classification_result = classifier_session.classify(&image::open(img_path)?)?;
+  // The above 2-line code is equal to: 
+  let classification_result = classifier.classify(&image::open(img_path)?)?;
+  ```
+
+### Available tasks
+
+* vision:
+    * gesture recognition: `GestureRecognizerBuilder` -> `GestureRecognizer` -> `GestureRecognizerSession`
+    * hand detection: `HandDetectorBuilder` -> `HandDetector` -> `HandDetectorSession`
+    * image classification: `ImageClassifierBuilder` -> `ImageClassifier` -> `ImageClassifierSession`
+    * image embedding: `ImageEmbedderBuilder` -> `ImageEmbedder` -> `ImageEmbedderSession`
+    * image segmentation: `ImageSegmenterBuilder` -> `ImageSegmenter` -> `ImageSegmenterSession`
+    * object detection: `ObjectDetectorBuilder` -> `ObjectDetector` -> `ObjectDetectorSession`
+* audio:
+    * audio classification: `AudioClassifierBuilder` -> `AudioClassifier` -> `AudioClassifierSession`
+* text:
+    * text classification: `TextClassifierBuilder` -> `TextClassifier` -> `TextClassifierSession`
 
 ## Examples
 
@@ -195,10 +246,47 @@ $ cargo run --release --example text_classification -- ./assets/models/text_clas
 
 ```
 
+### Gesture Recognition
+
+```rust
+use mediapipe_rs::tasks::vision::GestureRecognizerBuilder;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let (model_path, img_path) = parse_args()?;
+
+    let gesture_recognition_results = GestureRecognizerBuilder::new()
+        .model_asset_path(model_path) // set model path
+        .num_hands(1) // set only recognition one hand
+        .max_results(1) // set max result
+        .finalize()? // create a task instance
+        .recognize(&image::open(img_path)?)?; // do inference and generate results
+
+    for g in gesture_recognition_results {
+        println!("{}", g.gestures.classifications[0].categories[0]);
+    }
+
+    Ok(())
+}
+```
+
+Example input:
+<img height="30%" src="./assets/testdata/img/gesture_recognition_google_samples/victory.jpg" width="30%"/>
+
+Example output in console:
+
+```console
+$ cargo run --release --example gesture_recognition -- ./assets/models/gesture_recognition/gesture_recognizer.task ./assets/testdata/img/gesture_recognition_google_samples/victory.jpg
+    Finished release [optimized] target(s) in 0.02s
+     Running `/mediapipe-rs/./scripts/wasmedge-runner.sh target/wasm32-wasi/release/examples/gesture_recognition.wasm ./assets/models/gesture_recognition/gesture_recognizer.task ./assets/testdata/img/gesture_recognition_google_samples/victory.jpg`
+      Category name: "Victory"
+      Display name:  None
+      Score:         0.9322255
+      Index:         6
+```
+
 ### Audio Input
 
-Every media which implements the trait ```AudioData``` or trait ```InToTensorsIterator```, can be used as audio tasks
-input.
+Every audio media which implements the trait ```AudioData``` can be used as audio tasks input.
 Now the library has builtin implementation to support ```symphonia```, ```ffmpeg```, and raw audio data as input.
 
 Examples for Audio Classification:

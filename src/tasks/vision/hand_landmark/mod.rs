@@ -12,6 +12,7 @@ use crate::postprocess::{CategoriesFilter, NormalizedRect, TensorsToLandmarks, V
 use crate::preprocess::vision::{ImageToTensor, ImageToTensorInfo, VideoData};
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
+/// Performs hand landmark on images and video frames.
 pub struct HandLandmarker {
     build_options: HandLandmarkerBuilder,
     model_resource: Box<dyn ModelResourceTrait>,
@@ -29,18 +30,19 @@ pub struct HandLandmarker {
 }
 
 impl HandLandmarker {
-    pub const NUM_LANDMARKS: u32 = 21;
-    pub const LANDMARKS_NORMALIZE_Z: f32 = 0.4;
+    const LANDMARKS_NORMALIZE_Z: f32 = 0.4;
 
     detector_impl!(HandLandmarkerSession, HandLandmarkResults);
 
     hand_landmark_options_get_impl!();
 
+    /// Get the subtask: hand detector.
     #[inline(always)]
     pub fn subtask_hand_detector(&self) -> &HandDetector {
         &self.hand_detector
     }
 
+    /// Create a new task session that contains processing buffers and can do inference.
     #[inline(always)]
     pub fn new_session(&self) -> Result<HandLandmarkerSession, Error> {
         let image_to_tensor_info =
@@ -62,7 +64,7 @@ impl HandLandmarker {
             self.landmarks_buf_index
         );
         let mut tensors_to_landmarks =
-            TensorsToLandmarks::new(Self::NUM_LANDMARKS, landmarks_out, landmarks_shape)?;
+            TensorsToLandmarks::new(HandLandmark::NAMES.len(), landmarks_out, landmarks_shape)?;
         tensors_to_landmarks
             .set_image_size(image_to_tensor_info.width(), image_to_tensor_info.height());
         tensors_to_landmarks.set_normalize_z(Self::LANDMARKS_NORMALIZE_Z);
@@ -75,7 +77,7 @@ impl HandLandmarker {
             self.world_landmarks_buf_index
         );
         let tensors_to_world_landmarks = TensorsToLandmarks::new(
-            Self::NUM_LANDMARKS,
+            HandLandmark::NAMES.len(),
             world_landmarks_out,
             world_landmarks_shape,
         )?;
@@ -99,6 +101,8 @@ impl HandLandmarker {
     }
 }
 
+/// Session to run inference.
+/// If process multiple images or videos, reuse it can get better performance.
 pub struct HandLandmarkerSession<'model> {
     hand_landmarker: &'model HandLandmarker,
     execution_ctx: GraphExecutionContext<'model>,
@@ -119,7 +123,7 @@ impl<'model> HandLandmarkerSession<'model> {
     const DETECTION_TO_RECT_ROTATION_OPTION: Option<(f32, usize, usize)> =
         Some((90. * std::f32::consts::PI / 180.0, 0, 2));
 
-    /// Detect one image
+    /// Detect one image using this task session.
     #[inline(always)]
     pub fn detect(&mut self, input: &impl ImageToTensor) -> Result<HandLandmarkResults, Error> {
         let (img_w, img_h) = input.image_size();

@@ -6,7 +6,8 @@ use regex::Regex;
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-/// Text model input
+/// Text model input interface. Every Text data implement the [`TextToTensors`] trait can be used as text tasks input.
+/// Now the builtin impl: [`str`], [`String`], [`Cow<'a, str>`].
 pub trait TextToTensors {
     fn to_tensors<T: AsMut<[E]>, E: AsMut<[u8]>>(
         &self,

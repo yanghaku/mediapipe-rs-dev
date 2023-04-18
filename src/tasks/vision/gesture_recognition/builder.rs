@@ -2,7 +2,8 @@ use super::*;
 use crate::model::{ModelResourceTrait, ZipFiles};
 use crate::tasks::common::{BaseTaskOptions, ClassificationOptions, HandLandmarkOptions};
 
-/// Configure the properties of a new gesture recognition task.
+/// Configure the build options of a new **Gesture Recognition** task instance.
+///
 /// Methods can be chained on it in order to configure it.
 pub struct GestureRecognizerBuilder {
     pub(super) base_task_options: BaseTaskOptions,
@@ -41,24 +42,43 @@ impl GestureRecognizerBuilder {
 
     hand_landmark_options_impl!();
 
+    /// **Set options for custom classification model! (if custom model exists)**
+    ///
+    /// Set the locale to use for display names specified through the TFLite Model Metadata, if any.
+    /// Defaults to English.
     #[inline(always)]
     pub fn custom_classifier_display_names_locale(mut self, display_names_locale: String) -> Self {
         self.custom_classification_options.display_names_locale = display_names_locale;
         self
     }
 
+    /// **Set options for custom classification model! (if custom model exists)**
+    ///
+    /// Set the maximum number of top-scored classification results to return.
+    /// If < 0, all available results will be returned.
+    /// If 0, an invalid argument error is returned.
     #[inline(always)]
     pub fn custom_classifier_max_results(mut self, max_results: i32) -> Self {
         self.custom_classification_options.max_results = max_results;
         self
     }
 
+    /// **Set options for custom classification model! (if custom model exists)**
+    ///
+    /// Set score threshold to override the one provided in the model metadata (if any).
+    /// Results below this value are rejected.
     #[inline(always)]
     pub fn custom_classifier_score_threshold(mut self, score_threshold: f32) -> Self {
         self.custom_classification_options.score_threshold = score_threshold;
         self
     }
 
+    /// **Set options for custom classification model! (if custom model exists)**
+    ///
+    /// Set the allow list of category names.
+    /// If non-empty, detection results whose category name is not in this set will be filtered out.
+    /// Duplicate or unknown category names are ignored.
+    /// Mutually exclusive with category_deny_list.
     #[inline(always)]
     pub fn custom_classifier_category_allow_list(
         mut self,
@@ -68,6 +88,12 @@ impl GestureRecognizerBuilder {
         self
     }
 
+    /// **Set options for custom classification model! (if custom model exists)**
+    ///
+    /// Set the deny list of category names.
+    /// If non-empty, detection results whose category name is in this set will be filtered out.
+    /// Duplicate or unknown category names are ignored.
+    /// Mutually exclusive with category_allow_list.
     #[inline(always)]
     pub fn custom_classifier_category_deny_list(mut self, category_deny_list: Vec<String>) -> Self {
         self.custom_classification_options.category_deny_list = category_deny_list;
@@ -88,6 +114,7 @@ impl GestureRecognizerBuilder {
 
     pub const TASK_NAME: &'static str = "GestureRecognizer";
 
+    /// Create a new builder with default options.
     #[inline(always)]
     pub fn new() -> Self {
         Self {
@@ -98,6 +125,7 @@ impl GestureRecognizerBuilder {
         }
     }
 
+    /// Use the build options to create a new task instance.
     #[inline]
     pub fn finalize(mut self) -> Result<GestureRecognizer, Error> {
         classification_options_check!(self, classification_options);

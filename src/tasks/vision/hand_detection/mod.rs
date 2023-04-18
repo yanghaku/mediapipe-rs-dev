@@ -9,6 +9,7 @@ use crate::postprocess::{
 use crate::preprocess::vision::ImageToTensorInfo;
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
+/// Performs hand detection on images and video frames.
 pub struct HandDetector {
     build_options: HandDetectorBuilder,
     model_resource: Box<dyn ModelResourceTrait>,
@@ -26,16 +27,19 @@ pub struct HandDetector {
 impl HandDetector {
     detector_impl!(HandDetectorSession, DetectionResult);
 
+    /// Get the maximum number of hands can be detected by the HandDetector.
     #[inline(always)]
     pub fn num_hands(&self) -> i32 {
         self.build_options.num_hands
     }
 
+    /// Get the minimum confidence score for the hand detection to be considered successful.
     #[inline(always)]
     pub fn min_detection_confidence(&self) -> f32 {
         self.build_options.min_detection_confidence
     }
 
+    /// Create a new task session that contains processing buffers and can do inference.
     #[inline(always)]
     pub fn new_session(&self) -> Result<HandDetectorSession, Error> {
         let image_to_tensor_info =
@@ -83,6 +87,8 @@ impl HandDetector {
     }
 }
 
+/// Session to run inference.
+/// If process multiple images or videos, reuse it can get better performance.
 pub struct HandDetectorSession<'model> {
     detector: &'model HandDetector,
     execution_ctx: GraphExecutionContext<'model>,

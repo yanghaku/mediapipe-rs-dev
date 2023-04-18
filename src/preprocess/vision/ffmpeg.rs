@@ -6,6 +6,7 @@ use std::collections::HashMap;
 type FFMpegVideoInput =
     common::ffmpeg_input::FFMpegInput<ffmpeg_next::decoder::Video, ffmpeg_next::frame::Video>;
 
+/// FFMpeg Video Data, which can be used as vision tasks input.
 pub struct FFMpegVideoData {
     source: FFMpegVideoInput,
 
@@ -19,6 +20,7 @@ pub struct FFMpegVideoData {
 }
 
 impl FFMpegVideoData {
+    /// Create a new instance from a FFMpeg input.
     #[inline(always)]
     pub fn new(input: ffmpeg_next::format::context::Input) -> Result<Self, Error> {
         let source = FFMpegVideoInput::new(input)?;

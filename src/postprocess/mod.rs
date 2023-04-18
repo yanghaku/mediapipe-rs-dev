@@ -4,11 +4,11 @@ pub use containers::*;
 
 /// stateless operators for tensor
 mod ops;
-pub use ops::{Activation, QuantizationParameters};
+pub(crate) use ops::{Activation, QuantizationParameters};
 
 /// stateful objects, convert tensor to results
 mod processing;
 pub(crate) use processing::*;
 
-/// utils to use the results, such as draw_utils
+/// Utils to to make use of task results, such as drawing utils.
 pub mod utils;

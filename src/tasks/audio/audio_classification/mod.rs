@@ -21,6 +21,7 @@ impl AudioClassifier {
 
     classification_options_get_impl!();
 
+    /// Create a new task session that contains processing buffers and can do inference.
     #[inline(always)]
     pub fn new_session(&self) -> Result<AudioClassifierSession, Error> {
         let input_to_tensor_info =
@@ -62,7 +63,7 @@ impl AudioClassifier {
         })
     }
 
-    /// Classify audio stream, and collect all results to [`Vec`]
+    /// Classify audio stream using a new session, and collect all results to [`Vec`]
     #[inline(always)]
     pub fn classify(
         &self,
@@ -73,6 +74,7 @@ impl AudioClassifier {
 }
 
 /// Session to run inference.
+/// If process multiple audio input, reuse it can get better performance.
 pub struct AudioClassifierSession<'model> {
     classifier: &'model AudioClassifier,
     execution_ctx: GraphExecutionContext<'model>,

@@ -4,7 +4,8 @@ use crate::tasks::common::{BaseTaskOptions, ClassificationOptions};
 use crate::Error;
 use wasi_nn_safe::TensorType;
 
-/// Configure the properties of a new text classification task.
+/// Configure the build options of a new **Text Classification** task instance.
+///
 /// Methods can be chained on it in order to configure it.
 pub struct TextClassifierBuilder {
     pub(super) base_task_options: BaseTaskOptions,
@@ -22,6 +23,7 @@ impl Default for TextClassifierBuilder {
 }
 
 impl TextClassifierBuilder {
+    /// Create a new builder with default options.
     #[inline(always)]
     pub fn new() -> Self {
         Self {
@@ -34,6 +36,7 @@ impl TextClassifierBuilder {
 
     classification_options_impl!();
 
+    /// Use the build options to create a new task instance.
     #[inline]
     pub fn finalize(mut self) -> Result<TextClassifier, Error> {
         classification_options_check!(self, classification_options);

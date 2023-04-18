@@ -3,12 +3,14 @@ use symphonia_core::audio::{AudioBufferRef, Signal};
 use symphonia_core::codecs::Decoder;
 use symphonia_core::formats::FormatReader;
 
+/// Audio Data which using the `symphonia` crate as a decoder.
 pub struct SymphoniaAudioData {
     format_reader: Box<dyn FormatReader>,
     decoder: Box<dyn Decoder>,
 }
 
 impl SymphoniaAudioData {
+    /// Create a new Symphonia Audio Data.
     #[inline(always)]
     pub fn new(format_reader: Box<dyn FormatReader>, decoder: Box<dyn Decoder>) -> Self {
         Self {

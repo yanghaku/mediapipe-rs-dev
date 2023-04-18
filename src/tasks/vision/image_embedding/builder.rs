@@ -2,7 +2,8 @@ use super::ImageEmbedder;
 use crate::model::ModelResourceTrait;
 use crate::tasks::common::{BaseTaskOptions, EmbeddingOptions};
 
-/// Configure the properties of a new image embedding task.
+/// Configure the build options of a new **Image Embedding** task instance.
+///
 /// Methods can be chained on it in order to configure it.
 pub struct ImageEmbedderBuilder {
     pub(super) base_task_options: BaseTaskOptions,
@@ -20,6 +21,7 @@ impl Default for ImageEmbedderBuilder {
 }
 
 impl ImageEmbedderBuilder {
+    /// Create a new builder with default options.
     #[inline(always)]
     pub fn new() -> Self {
         Self::default()
@@ -29,6 +31,7 @@ impl ImageEmbedderBuilder {
 
     embedding_options_impl!();
 
+    /// Use the build options to create a new task instance.
     #[inline]
     pub fn finalize(mut self) -> Result<ImageEmbedder, crate::Error> {
         let buf = base_task_options_check_and_get_buf!(self);

@@ -2,7 +2,8 @@ use super::ImageClassifier;
 use crate::model::ModelResourceTrait;
 use crate::tasks::common::{BaseTaskOptions, ClassificationOptions};
 
-/// Configure the properties of a new image classification task.
+/// Configure the build options of a new **Image Classification** task instance.
+///
 /// Methods can be chained on it in order to configure it.
 pub struct ImageClassifierBuilder {
     pub(super) base_task_options: BaseTaskOptions,
@@ -20,6 +21,7 @@ impl Default for ImageClassifierBuilder {
 }
 
 impl ImageClassifierBuilder {
+    /// Create a new builder with default options.
     #[inline(always)]
     pub fn new() -> Self {
         Self {
@@ -32,6 +34,7 @@ impl ImageClassifierBuilder {
 
     classification_options_impl!();
 
+    /// Use the build options to create a new task instance.
     #[inline]
     pub fn finalize(mut self) -> Result<ImageClassifier, crate::Error> {
         classification_options_check!(self, classification_options);

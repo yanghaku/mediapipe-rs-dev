@@ -8,7 +8,7 @@ use crate::postprocess::{Activation, TensorsToSegmentation, VideoResultsIter};
 use crate::preprocess::vision::{ImageToTensor, ImageToTensorInfo, VideoData};
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
-/// Performs segmentation on images.
+/// Performs segmentation on images and video frames.
 pub struct ImageSegmenter {
     build_options: ImageSegmenterBuilder,
     model_resource: Box<dyn ModelResourceTrait>,
@@ -24,34 +24,37 @@ pub struct ImageSegmenter {
 impl ImageSegmenter {
     base_task_options_get_impl!();
 
-    /// Get display names locale
+    /// Get display names locale.
     #[inline(always)]
     pub fn display_names_locale(&self) -> &String {
         &self.build_options.display_names_locale
     }
 
+    /// Get whether output the category mask.
     #[inline(always)]
     pub fn output_category_mask(&self) -> bool {
         self.build_options.output_category_mask
     }
 
+    /// Get whether output the confidence masks.
     #[inline(always)]
     pub fn output_confidence_masks(&self) -> bool {
         self.build_options.output_confidence_masks
     }
 
-    /// get labels for the task model
+    /// Get labels for the task model.
     #[inline(always)]
     pub fn labels(&self) -> &Vec<String> {
         &self.labels
     }
 
-    /// get locale labels for the task model
+    /// Get locale labels for the task model.
     #[inline(always)]
     pub fn labels_locale(&self) -> &Option<Vec<String>> {
         &self.labels_locale
     }
 
+    /// Create a new task session that contains processing buffers and can do inference.
     #[inline(always)]
     pub fn new_session(&self) -> Result<ImageSegmenterSession, Error> {
         let input_to_tensor_info =
@@ -81,13 +84,13 @@ impl ImageSegmenter {
         })
     }
 
-    /// Segment one image.
+    /// Segment one image using this session.
     #[inline(always)]
     pub fn segment(&self, input: &impl ImageToTensor) -> Result<ImageSegmentationResult, Error> {
         self.new_session()?.segment(input)
     }
 
-    /// Segment video stream, and collect all results to [`Vec`]
+    /// Segment video stream using this session, and collect all results to [`Vec`]
     #[inline(always)]
     pub fn segment_for_video(
         &self,
@@ -97,6 +100,8 @@ impl ImageSegmenter {
     }
 }
 
+/// Session to run inference.
+/// If process multiple images or videos, reuse it can get better performance.
 pub struct ImageSegmenterSession<'model> {
     execution_ctx: GraphExecutionContext<'model>,
     tensors_to_segmentation: TensorsToSegmentation,

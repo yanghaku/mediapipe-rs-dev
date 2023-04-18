@@ -18,7 +18,7 @@ pub use image_embedding::{ImageEmbedder, ImageEmbedderBuilder, ImageEmbedderSess
 pub use image_segmentation::{ImageSegmenter, ImageSegmenterBuilder, ImageSegmenterSession};
 pub use object_detection::{ObjectDetector, ObjectDetectorBuilder, ObjectDetectorSession};
 
-// re-export task results type
+/// Re-export some task results types
 pub mod results {
     pub use super::gesture_recognition::{GestureRecognizerResult, GestureRecognizerResults};
     pub use super::hand_landmark::{HandLandmarkResult, HandLandmarkResults};
@@ -29,7 +29,7 @@ pub mod results {
 pub trait TaskSession {
     type Result: 'static;
 
-    /// process the next tensors from input stream
+    /// Process the next tensors from input stream
     fn process_next(
         &mut self,
         process_options: &ImageProcessingOptions,
@@ -37,7 +37,7 @@ pub trait TaskSession {
     ) -> Result<Option<Self::Result>, crate::Error>;
 }
 
-/// Options for image processing.
+/// Options for image processing. Set **Region of Interest** for image before processing task.
 ///
 /// If both region-or-interest and rotation are specified, the crop around the
 /// region-of-interest is extracted first, then the specified rotation is applied to the crop.
@@ -59,13 +59,13 @@ impl Default for ImageProcessingOptions {
 }
 
 impl ImageProcessingOptions {
-    /// Create default options
+    /// Create a new instance with default options.
     #[inline(always)]
     pub fn new() -> Self {
         Default::default()
     }
 
-    /// The rotation to apply to the image (or cropped region-of-interest), in degrees clockwise.
+    /// Set the rotation to apply to the image (or cropped region-of-interest), in degrees clockwise.
     ///
     /// The rotation must be a multiple (positive or negative) of 90°.
     /// default is 0.
@@ -85,10 +85,10 @@ impl ImageProcessingOptions {
         Ok(self)
     }
 
-    /// The optional region-of-interest to crop from the image.
+    /// Set the optional region-of-interest to crop from the image.
     /// If not specified, the full image is used.
     ///
-    /// Coordinates must be in [0,1] with 'left' < 'right' and 'top' < bottom.
+    /// Coordinates must be in \[0,1\] with 'left' < 'right' and 'top' < bottom.
     #[inline(always)]
     pub fn region_of_interest(
         mut self,

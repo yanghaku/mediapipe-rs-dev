@@ -14,6 +14,7 @@ use crate::postprocess::{
 use crate::preprocess::vision::{ImageToTensor, VideoData};
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
+/// Performs gesture recognition on images and video frames.
 pub struct GestureRecognizer {
     build_options: GestureRecognizerBuilder,
 
@@ -67,6 +68,7 @@ impl GestureRecognizer {
 
     hand_landmark_options_get_impl!();
 
+    /// Create a new task session that contains processing buffers and can do inference.
     #[inline(always)]
     pub fn new_session(&self) -> Result<GestureRecognizerSession, Error> {
         // get input shapes
@@ -152,13 +154,13 @@ impl GestureRecognizer {
         })
     }
 
-    /// Recognize one image.
+    /// Recognize one image using a new task session.
     #[inline(always)]
     pub fn recognize(&self, input: &impl ImageToTensor) -> Result<GestureRecognizerResults, Error> {
         self.new_session()?.recognize(input)
     }
 
-    /// Recognize video stream, and collect all results to [`Vec`]
+    /// Recognize video stream using a new task session, and collect all results to [`Vec`].
     #[inline(always)]
     pub fn recognize_for_video(
         &self,
@@ -170,6 +172,8 @@ impl GestureRecognizer {
     }
 }
 
+/// Session to run inference.
+/// If process multiple images or videos, reuse it can get better performance.
 pub struct GestureRecognizerSession<'model> {
     gesture_recognizer: &'model GestureRecognizer,
     gesture_embed_execution_ctx: GraphExecutionContext<'model>,
@@ -192,7 +196,7 @@ pub struct GestureRecognizerSession<'model> {
 }
 
 impl<'model> GestureRecognizerSession<'model> {
-    /// Recognize one image
+    /// Recognize one image using this session.
     #[inline(always)]
     pub fn recognize(
         &mut self,

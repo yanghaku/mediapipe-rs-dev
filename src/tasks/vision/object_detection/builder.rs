@@ -2,7 +2,8 @@ use super::ObjectDetector;
 use crate::model::ModelResourceTrait;
 use crate::tasks::common::{BaseTaskOptions, ClassificationOptions};
 
-/// Configure the properties of a new object detection task.
+/// Configure the build options of a new **Object Detection** task instance.
+///
 /// Methods can be chained on it in order to configure it.
 pub struct ObjectDetectorBuilder {
     pub(super) base_task_options: BaseTaskOptions,
@@ -20,6 +21,7 @@ impl Default for ObjectDetectorBuilder {
 }
 
 impl ObjectDetectorBuilder {
+    /// Create a new builder with default options.
     #[inline(always)]
     pub fn new() -> Self {
         Self {
@@ -32,6 +34,7 @@ impl ObjectDetectorBuilder {
 
     classification_options_impl!();
 
+    /// Use the build options to create a new task instance.
     #[inline]
     pub fn finalize(mut self) -> Result<ObjectDetector, crate::Error> {
         classification_options_check!(self, classification_options);

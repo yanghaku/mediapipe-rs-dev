@@ -9,6 +9,8 @@ use super::*;
 use crate::tasks::vision::ImageProcessingOptions;
 use crate::TensorType;
 
+/// Every type implement the [`ImageToTensor`] trait can be used as vision tasks input.
+/// Now the builtin impl: image crate images.
 pub trait ImageToTensor {
     /// convert image to tensors, save to output_buffers
     fn to_tensor<T: AsMut<[u8]>>(
@@ -28,7 +30,9 @@ pub trait ImageToTensor {
     }
 }
 
-/// Used for video data.
+/// Used for video data. Every video data implement the [`VideoData`] can be used as vision tasks input.
+/// Now builtin impl: [`FFMpegVideoData`].
+///
 /// Now rust stable cannot use [Generic Associated Types](https://rust-lang.github.io/rfcs/1598-generic_associated_types.html)
 pub trait VideoData {
     type Frame<'frame>: ImageToTensor
@@ -46,7 +50,7 @@ pub enum ImageDataLayout {
     CHWN,
 }
 
-/// Image Color Type
+/// Image Color Type.
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum ImageColorSpaceType {
     RGB,
@@ -67,6 +71,7 @@ pub struct ImageToTensorInfo {
     pub normalization_options: (Vec<f32>, Vec<f32>),
 }
 
+/// The tensor shape which contains image information.
 #[derive(Debug, Copy, Clone)]
 pub struct ImageLikeTensorShape {
     pub batch: usize,
@@ -88,6 +93,7 @@ impl ImageToTensorInfo {
 }
 
 impl ImageLikeTensorShape {
+    /// Parse a tensor shape for given image data layout.
     pub fn parse(data_layout: ImageDataLayout, shape: &[usize]) -> Result<Self, Error> {
         match shape.len() {
             2 => Ok(Self {
@@ -137,6 +143,7 @@ impl ImageLikeTensorShape {
         }
     }
 
+    /// Get the number of tensor elements.
     #[inline(always)]
     pub fn elem_size(&self) -> usize {
         self.batch * self.width * self.height * self.channels

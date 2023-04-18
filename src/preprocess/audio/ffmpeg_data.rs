@@ -1,7 +1,31 @@
 use super::*;
 use common::ffmpeg_input::FFMpegInput;
 
-pub type FFMpegAudioData = FFMpegInput<ffmpeg_next::decoder::Audio, ffmpeg_next::frame::Audio>;
+type FFMpegAudioDataInner = FFMpegInput<ffmpeg_next::decoder::Audio, ffmpeg_next::frame::Audio>;
+
+/// Audio Data which using the `FFMpeg` library as a decoder.
+pub struct FFMpegAudioData(FFMpegAudioDataInner);
+
+impl FFMpegAudioData {
+    /// Create a new instance from FFMpeg input.
+    #[inline(always)]
+    pub fn new(input: ffmpeg_next::format::context::Input) -> Result<Self, Error> {
+        FFMpegAudioDataInner::new(input).map(|i| Self(i))
+    }
+}
+
+impl std::ops::Deref for FFMpegAudioData {
+    type Target = FFMpegAudioDataInner;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for FFMpegAudioData {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 macro_rules! output_to_buffer {
     ( $self:ident, $num_channels:ident, $num_samples:ident, $sample_buffer:ident, $tp:ty ) => {{

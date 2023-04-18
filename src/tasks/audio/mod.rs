@@ -6,7 +6,7 @@ pub use audio_classification::{AudioClassifier, AudioClassifierBuilder, AudioCla
 pub trait TaskSession {
     type Result: 'static;
 
-    /// process the next tensors from input stream
+    /// Process the next tensors from input stream
     fn process_next<Source: crate::preprocess::audio::AudioData>(
         &mut self,
         audio_stream_data: &mut crate::preprocess::audio::AudioDataToTensorIter<Source>,

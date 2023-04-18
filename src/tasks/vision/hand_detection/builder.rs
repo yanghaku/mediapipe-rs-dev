@@ -3,7 +3,8 @@ use crate::model::ModelResourceTrait;
 use crate::postprocess::SsdAnchorsBuilder;
 use crate::tasks::common::BaseTaskOptions;
 
-/// Configure the properties of a new object detection task.
+/// Configure the build options of a new **Hand Detection** task instance.
+///
 /// Methods can be chained on it in order to configure it.
 pub struct HandDetectorBuilder {
     pub(super) base_task_options: BaseTaskOptions,
@@ -22,6 +23,7 @@ impl Default for HandDetectorBuilder {
 }
 
 impl HandDetectorBuilder {
+    /// Create a new builder with default options.
     #[inline(always)]
     pub fn new() -> Self {
         Self {
@@ -33,18 +35,21 @@ impl HandDetectorBuilder {
 
     base_task_options_impl!();
 
+    /// Set the maximum number of hands can be detected by the HandDetector.
     #[inline(always)]
     pub fn num_hands(mut self, num_hands: i32) -> Self {
         self.num_hands = num_hands;
         self
     }
 
+    /// Set the minimum confidence score for the hand detection to be considered successful.
     #[inline(always)]
     pub fn min_detection_confidence(mut self, min_detection_confidence: f32) -> Self {
         self.min_detection_confidence = min_detection_confidence;
         self
     }
 
+    /// Use the build options to create a new task instance.
     #[inline]
     pub fn finalize(mut self) -> Result<HandDetector, crate::Error> {
         if self.num_hands == 0 {

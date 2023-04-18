@@ -3,7 +3,8 @@ use super::{HandDetectorBuilder, HandLandmarker, TensorType};
 use crate::model::{ModelResourceTrait, ZipFiles};
 use crate::tasks::common::{BaseTaskOptions, HandLandmarkOptions};
 
-/// Configure the properties of a new hand landmark task.
+/// Configure the build options of a new **Hand Landmark** task instance.
+///
 /// Methods can be chained on it in order to configure it.
 pub struct HandLandmarkerBuilder {
     pub(in super::super) base_task_options: BaseTaskOptions,
@@ -21,6 +22,7 @@ impl Default for HandLandmarkerBuilder {
 }
 
 impl HandLandmarkerBuilder {
+    /// Create a new builder with default options.
     #[inline(always)]
     pub fn new() -> Self {
         Self {
@@ -37,6 +39,7 @@ impl HandLandmarkerBuilder {
     pub const HAND_LANDMARKS_CANDIDATE_NAMES: &'static [&'static str] =
         &["hand_landmarks_detector.tflite"];
 
+    /// Use the build options to create a new task instance.
     #[inline]
     pub fn finalize(mut self) -> Result<HandLandmarker, crate::Error> {
         hand_landmark_options_check!(self);

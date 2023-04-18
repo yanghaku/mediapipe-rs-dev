@@ -2,7 +2,8 @@ use super::ImageSegmenter;
 use crate::model::{MemoryTextFile, ModelResourceTrait};
 use crate::tasks::common::BaseTaskOptions;
 
-/// Configure the properties of a new image segmentation task.
+/// Configure the build options of a new **Image Segmentation** task instance.
+///
 /// Methods can be chained on it in order to configure it.
 ///
 /// default options:
@@ -40,6 +41,7 @@ impl Default for ImageSegmenterBuilder {
 }
 
 impl ImageSegmenterBuilder {
+    /// Create a new builder with default options.
     #[inline(always)]
     pub fn new() -> Self {
         Default::default()
@@ -55,7 +57,7 @@ impl ImageSegmenterBuilder {
         self
     }
 
-    /// Set output to category_mask.
+    /// Set whether output the category mask.
     /// Segmentation mask will contain a uint8 image, where each pixel value indicates the winning category index.
     #[inline(always)]
     pub fn output_category_mask(mut self, output_category_mask: bool) -> Self {
@@ -63,14 +65,15 @@ impl ImageSegmenterBuilder {
         self
     }
 
-    /// Set output to confidence_masks. The segmentation masks are float images,
-    /// where each float image represents the confidence score map of the category.
+    /// Set whether output the confidence masks.
+    /// The segmentation masks are float images, where each float image represents the confidence score map of the category.
     #[inline(always)]
     pub fn output_confidence_masks(mut self, output_confidence_masks: bool) -> Self {
         self.output_confidence_masks = output_confidence_masks;
         self
     }
 
+    /// Use the build options to create a new task instance.
     #[inline]
     pub fn finalize(mut self) -> Result<ImageSegmenter, crate::Error> {
         if !self.output_category_mask && !self.output_confidence_masks {

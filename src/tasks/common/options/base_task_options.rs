@@ -21,12 +21,14 @@ impl Default for BaseTaskOptions {
 
 macro_rules! base_task_options_impl {
     () => {
+        /// Set model asset data use [`crate::SharedSlice`]
         #[inline(always)]
         pub fn model_asset_slice(mut self, model_asset_slice: crate::SharedSlice<u8>) -> Self {
             self.base_task_options.model_asset_buffer = Some(model_asset_slice);
             self
         }
 
+        /// Set model asset data using a data buffer
         #[inline(always)]
         pub fn model_asset_buffer(mut self, model_asset_buffer: Vec<u8>) -> Self {
             self.base_task_options.model_asset_buffer =
@@ -34,30 +36,35 @@ macro_rules! base_task_options_impl {
             self
         }
 
+        /// Set model asset use a file path
         #[inline(always)]
         pub fn model_asset_path(mut self, model_asset_path: impl Into<std::path::PathBuf>) -> Self {
             self.base_task_options.model_asset_path = Some(model_asset_path.into());
             self
         }
 
+        /// Set the device to run the models.
         #[inline(always)]
         pub fn execution_target(mut self, execution_target: crate::Device) -> Self {
             self.base_task_options.execution_target = execution_target;
             self
         }
 
+        /// Set ```CPU``` device to run the models.
         #[inline(always)]
         pub fn cpu(mut self) -> Self {
             self.base_task_options.execution_target = crate::Device::CPU;
             self
         }
 
+        /// Set ```GPU``` device to run the models.
         #[inline(always)]
         pub fn gpu(mut self) -> Self {
             self.base_task_options.execution_target = crate::Device::GPU;
             self
         }
 
+        /// Set ```TPU``` device to run the models.
         #[inline(always)]
         pub fn tpu(mut self) -> Self {
             self.base_task_options.execution_target = crate::Device::TPU;
@@ -94,6 +101,7 @@ macro_rules! base_task_options_check_and_get_buf {
 
 macro_rules! base_task_options_get_impl {
     () => {
+        /// Get the task running device.
         #[inline(always)]
         pub fn execution_target(&self) -> crate::Device {
             self.build_options.base_task_options.execution_target

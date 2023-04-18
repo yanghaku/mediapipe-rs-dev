@@ -18,6 +18,7 @@ impl TextClassifier {
 
     classification_options_get_impl!();
 
+    /// Create a new task session that contains processing buffers and can do inference.
     #[inline(always)]
     pub fn new_session(&self) -> Result<TextClassifierSession, Error> {
         let input_to_tensor_info =
@@ -68,13 +69,15 @@ impl TextClassifier {
         })
     }
 
+    /// Classify the input using a new session.
     #[inline(always)]
     pub fn classify(&self, input: &impl TextToTensors) -> Result<ClassificationResult, Error> {
         self.new_session()?.classify(input)
     }
 }
 
-/// Session to run inference. If process multiple text, use it can get better performance.
+/// Session to run inference.
+/// If process multiple text, reuse it can get better performance.
 ///
 /// ```rust
 /// use mediapipe_rs::tasks::text::TextClassifier;
@@ -95,6 +98,7 @@ pub struct TextClassifierSession<'a> {
 }
 
 impl<'a> TextClassifierSession<'a> {
+    /// Classify the input using this session.
     pub fn classify(&mut self, input: &impl TextToTensors) -> Result<ClassificationResult, Error> {
         input.to_tensors(self.input_to_tensor_info, &mut self.input_tensor_bufs)?;
 

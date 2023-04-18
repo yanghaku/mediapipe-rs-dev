@@ -2,7 +2,7 @@ macro_rules! detector_impl {
     ( $DetectorSessionName:ident, $Result:ident ) => {
         base_task_options_get_impl!();
 
-        /// Detect one image.
+        /// Detect one image using a new session.
         #[inline(always)]
         pub fn detect(
             &self,
@@ -11,7 +11,7 @@ macro_rules! detector_impl {
             self.new_session()?.detect(input)
         }
 
-        /// Detect input video stream, and collect all results to [`Vec`]
+        /// Detect input video stream in a new session, and collect all results to [`Vec`].
         #[inline(always)]
         pub fn detect_for_video(
             &self,
@@ -24,7 +24,7 @@ macro_rules! detector_impl {
 
 macro_rules! detector_session_impl {
     ( $Result:ident ) => {
-        /// Detect one image
+        /// Detect one image using this session.
         #[inline(always)]
         pub fn detect(
             &mut self,

@@ -6,7 +6,7 @@ use crate::postprocess::{CategoriesFilter, DetectionResult, TensorsToDetection};
 use crate::preprocess::vision::ImageToTensorInfo;
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
-/// Performs object detection on single images, video frames, or live stream.
+/// Performs object detection on images and video frames.
 pub struct ObjectDetector {
     build_options: ObjectDetectorBuilder,
     model_resource: Box<dyn ModelResourceTrait>,
@@ -26,6 +26,7 @@ impl ObjectDetector {
 
     detector_impl!(ObjectDetectorSession, DetectionResult);
 
+    /// Create a new task session that contains processing buffers and can do inference.
     #[inline(always)]
     pub fn new_session(&self) -> Result<ObjectDetectorSession, Error> {
         let image_to_tensor_info =
@@ -68,7 +69,8 @@ impl ObjectDetector {
     }
 }
 
-/// Session to run inference. If process multiple images, use it can get better performance.
+/// Session to run inference.
+/// If process multiple images or videos, reuse it can get better performance.
 ///
 /// ```rust
 /// use mediapipe_rs::tasks::vision::ObjectDetector;

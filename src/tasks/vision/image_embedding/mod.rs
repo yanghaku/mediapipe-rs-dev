@@ -6,6 +6,7 @@ use crate::postprocess::{EmbeddingResult, TensorsToEmbedding, VideoResultsIter};
 use crate::preprocess::vision::{ImageToTensor, ImageToTensorInfo, VideoData};
 use crate::{Error, Graph, GraphExecutionContext, TensorType};
 
+/// Performs embedding on images and video frames.
 pub struct ImageEmbedder {
     build_options: ImageEmbedderBuilder,
     model_resource: Box<dyn ModelResourceTrait>,
@@ -19,6 +20,7 @@ impl ImageEmbedder {
 
     embedding_options_get_impl!();
 
+    /// Create a new task session that contains processing buffers and can do inference.
     #[inline(always)]
     pub fn new_session(&self) -> Result<ImageEmbedderSession, Error> {
         let input_to_tensor_info =
@@ -49,13 +51,13 @@ impl ImageEmbedder {
         })
     }
 
-    /// Embed one image.
+    /// Embed one image using a new session.
     #[inline(always)]
     pub fn embed(&self, input: &impl ImageToTensor) -> Result<EmbeddingResult, Error> {
         self.new_session()?.embed(input)
     }
 
-    /// Embed one image with options to specify the region of interest.
+    /// Embed one image using a new session with options to specify the region of interest.
     #[inline(always)]
     pub fn embed_with_options(
         &self,
@@ -66,7 +68,7 @@ impl ImageEmbedder {
             .embed_with_options(input, process_options)
     }
 
-    /// Embed audio stream, and collect all results to [`Vec`]
+    /// Embed audio stream using a new task session, and collect all results to [`Vec`].
     #[inline(always)]
     pub fn embed_for_video(
         &self,
@@ -76,6 +78,8 @@ impl ImageEmbedder {
     }
 }
 
+/// Session to run inference.
+/// If process multiple images or videos, reuse it can get better performance.
 pub struct ImageEmbedderSession<'model> {
     execution_ctx: GraphExecutionContext<'model>,
     tensor_to_embedding: TensorsToEmbedding,

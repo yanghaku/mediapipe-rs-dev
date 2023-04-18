@@ -1,5 +1,5 @@
 //!
-//! # A Rust library for mediapipe tasks for WasmEdge WASI-NN
+//! # A Rust library for MediaPipe tasks for WasmEdge WASI-NN
 //!
 //! ## Introduction
 //!
@@ -10,6 +10,59 @@
 //!   but also supports **[TF Hub](https://tfhub.dev/)** models and **custom models** with essential information.
 //! * Support **multiple model formats**, such as TfLite, PyTorch, and Onnx.
 //!   The library can **detect it when loading models**.
+//!
+//! ## Task APIs
+//!
+//! Every task has three types: ```XxxBuilder``` -> ```Xxx``` -> ```XxxSession```. (``Xxx`` is the task name)
+//!
+//! * ```XxxBuilder``` is used to create a task instance ```Xxx```, which has many options to set.
+//!
+//!   example: use ```ImageClassifierBuilder``` to build a ```ImageClassifier``` task.
+//!   ```
+//!   use mediapipe_rs::tasks::vision::ImageClassifierBuilder;
+//!
+//!   let classifier = ImageClassifierBuilder::new()
+//!         .model_asset_path(model_path) // set model path
+//!         .max_results(3) // set max result
+//!         .category_deny_list(vec!["denied label".into()]) // set deny list
+//!         .gpu() // set running device
+//!         .finalize()?; // create a image classifier
+//!   ```
+//! * ```Xxx``` is a task instance, which contains task information and model information.
+//!
+//!   example: use ```ImageClassifier``` to create a new ```ImageClassifierSession```
+//!   ```
+//!   let classifier_session = classifier.new_session()?;
+//!   ```
+//! * ```XxxSession``` is a running session to perform pre-process, inference, and post-process, which has buffers to store
+//!   mid-results.
+//!
+//!   example: use ```ImageClassifierSession``` to run the image classification task and return classification results:
+//!   ```
+//!   let classification_result = classifier_session.classify(&img)?;
+//!   ```
+//!   **Note**: the session can be reused to speed up, if the code just uses the session once, it can use the task's wrapper
+//!   function to simplify.
+//!   ```
+//!   // let classifier_session = classifier.new_session()?;
+//!   // let classification_result = classifier_session.classify(&img)?;
+//!   // The above 2-line code is equal to:
+//!   let classification_result = classifier.classify(&img)?;
+//!   ```
+//!
+//! ## Available tasks
+//! * vision:
+//!   * gesture recognition: [`GestureRecognizerBuilder`] -> [`GestureRecognizer`] -> [`GestureRecognizerSession`]
+//!   * hand detection: [`HandDetectorBuilder`] -> [`HandDetector`] -> [`HandDetectorSession`]
+//!   * image classification: [`ImageClassifierBuilder`] -> [`ImageClassifier`] -> [`ImageClassifierSession`]
+//!   * image embedding: [`ImageEmbedderBuilder`] -> [`ImageEmbedder`] -> [`ImageEmbedderSession`]
+//!   * image segmentation: [`ImageSegmenterBuilder`] -> [`ImageSegmenter`] -> [`ImageSegmenterSession`]
+//!   * object detection: [`ObjectDetectorBuilder`] -> [`ObjectDetector`] -> [`ObjectDetectorSession`]
+//! * audio:
+//!   * audio classification: [`AudioClassifierBuilder`] -> [`AudioClassifier`] -> [`AudioClassifierSession`]
+//! * text:
+//!   * text classification: [`TextClassifierBuilder`] -> [`TextClassifier`] -> [`TextClassifierSession`]
+//!
 //!
 //! ## Examples
 //!
@@ -89,9 +142,34 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//!
+//! ## Gesture Recognition
+//!
+//! ```rust
+//! use mediapipe_rs::tasks::vision::GestureRecognizerBuilder;
+//!
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let (model_path, img_path) = parse_args()?;
+//!
+//!     let gesture_recognition_results = GestureRecognizerBuilder::new()
+//!         .model_asset_path(model_path) // set model path
+//!         .num_hands(1) // set only recognition one hand
+//!         .max_results(1) // set max result
+//!         .finalize()? // create a task instance
+//!         .recognize(&image::open(img_path)?)?; // do inference and generate results
+//!
+//! for g in gesture_recognition_results {
+//!         println!("{}", g.gestures.classifications[0].categories[0]);
+//!     }
+//!
+//! Ok(())
+//! }
+//! ```
+//!
 //! ### Audio Input
 //!
-//! Every media which implements the trait [`preprocess::audio::AudioData`] or trait [`preprocess::InToTensorsIterator`], can be used as audio tasks input.
+//! Every audio media which implements the trait [`preprocess::audio::AudioData`] can be used as audio tasks input.
 //! Now the library has builtin implementation to support ```symphonia```, ```ffmpeg```, and raw audio data as input.
 //!
 //! Examples for Audio Classification:
@@ -227,8 +305,12 @@ mod error;
 #[macro_use]
 mod model;
 
+/// MediaPipe-rs postprocess api, which define the tasks results and implement tensors results to task results.
+/// The module also has utils to make use of results, such as drawing utils.
 pub mod postprocess;
+/// MediaPipe-rs preprocess api, which define the tasks input interface (convert media input to tensors) and implement some builtin pre-process function for types.
 pub mod preprocess;
+/// MediaPipe-rs tasks api, contain audio, vision and text tasks.
 pub mod tasks;
 
 pub use error::Error;
@@ -236,3 +318,6 @@ pub use wasi_nn_safe::GraphExecutionTarget as Device;
 use wasi_nn_safe::{
     Graph, GraphBuilder, GraphEncoding, GraphExecutionContext, SharedSlice, TensorType,
 };
+
+#[cfg(doc)]
+use tasks::{audio::*, text::*, vision::*};
