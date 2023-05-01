@@ -1,3 +1,4 @@
+mod face_detection;
 mod gesture_recognition;
 mod hand_detection;
 mod hand_landmark;
@@ -6,6 +7,7 @@ mod image_embedding;
 mod image_segmentation;
 mod object_detection;
 
+pub use face_detection::{FaceDetector, FaceDetectorBuilder, FaceDetectorSession};
 pub use gesture_recognition::{
     GestureRecognizer, GestureRecognizerBuilder, GestureRecognizerSession,
 };

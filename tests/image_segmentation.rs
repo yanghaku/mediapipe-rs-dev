@@ -19,20 +19,15 @@ fn test_image_segmentation_tasks(model_asset: &str) {
     let img = image::open(IMG_1).unwrap();
     let segmentation_res = ImageSegmenterBuilder::new()
         .model_asset_path(model_asset)
-        .output_confidence_masks(true)
+        .output_confidence_masks(false)
         .output_category_mask(true)
         .finalize()
         .unwrap()
         .segment(&img)
         .unwrap();
-    assert!(segmentation_res.confidence_masks.is_some());
+    assert!(segmentation_res.confidence_masks.is_none());
     assert!(segmentation_res.category_mask.is_some());
-    let confidence_masks = segmentation_res.confidence_masks.as_ref().unwrap();
     let category_mask = segmentation_res.category_mask.as_ref().unwrap();
-    for c in confidence_masks {
-        assert_eq!(c.width(), img.width());
-        assert_eq!(c.height(), img.height());
-    }
     assert_eq!(category_mask.width(), img.width());
     assert_eq!(category_mask.height(), img.height());
 

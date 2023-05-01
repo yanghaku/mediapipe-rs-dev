@@ -30,7 +30,7 @@ impl<'buf> TfLiteModelResource<'buf> {
     const METADATA_NAME: &'static str = "TFLITE_METADATA";
 
     pub(super) fn new(buf: &'buf [u8]) -> Result<Self, Error> {
-        let associated_files = ZipFiles::try_new(buf)?;
+        let associated_files = ZipFiles::try_new(buf).unwrap_or(None);
         let model = tflite_model::root_as_model(buf)?;
         let mut _self = Self {
             output_tensor_metadata: None,

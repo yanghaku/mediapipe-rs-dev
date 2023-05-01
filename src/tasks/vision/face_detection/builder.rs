@@ -1,49 +1,51 @@
-use super::HandDetector;
+use super::FaceDetector;
 use crate::model::ModelResourceTrait;
 use crate::postprocess::SsdAnchorsBuilder;
 use crate::tasks::common::BaseTaskOptions;
 
-/// Configure the build options of a new **Hand Detection** task instance.
+/// Configure the build options of a new **Face Detection** task instance.
 ///
 /// Methods can be chained on it in order to configure it.
-pub struct HandDetectorBuilder {
+pub struct FaceDetectorBuilder {
     pub(super) base_task_options: BaseTaskOptions,
-    /// The maximum number of hands output by the detector.
-    pub(super) num_hands: i32,
-    /// Minimum confidence value ([0.0, 1.0]) for confidence score to be considered
-    /// successfully detecting a hand in the image.
+    /// The maximum number of faces output by the detector.
+    pub(super) num_faces: i32,
+    /// The minimum confidence score for the face detection to be considered successful.
     pub(super) min_detection_confidence: f32,
+    /// The minimum non-maximum-suppression threshold for face detection to be considered overlapped.
+    pub(super) min_suppression_threshold: f32,
 }
 
-impl Default for HandDetectorBuilder {
+impl Default for FaceDetectorBuilder {
     #[inline(always)]
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl HandDetectorBuilder {
+impl FaceDetectorBuilder {
     /// Create a new builder with default options.
     #[inline(always)]
     pub fn new() -> Self {
         Self {
             base_task_options: Default::default(),
-            num_hands: -1,
+            num_faces: -1,
             min_detection_confidence: 0.5,
+            min_suppression_threshold: 0.3,
         }
     }
 
     base_task_options_impl!();
 
-    /// Set the maximum number of hands can be detected by the HandDetector.
+    /// Set the maximum number of faces can be detected by the HandDetector.
     /// Default is -1, (no limits)
     #[inline(always)]
-    pub fn num_hands(mut self, num_hands: i32) -> Self {
-        self.num_hands = num_hands;
+    pub fn num_faces(mut self, num_faces: i32) -> Self {
+        self.num_faces = num_faces;
         self
     }
 
-    /// Set the minimum confidence score for the hand detection to be considered successful.
+    /// Set the minimum confidence score for the face detection to be considered successful.
     /// Default is 0.5
     #[inline(always)]
     pub fn min_detection_confidence(mut self, min_detection_confidence: f32) -> Self {
@@ -51,12 +53,20 @@ impl HandDetectorBuilder {
         self
     }
 
+    /// Set the minimum non-maximum-suppression threshold for face detection to be considered overlapped.
+    /// Default is 0.3
+    #[inline(always)]
+    pub fn min_suppression_threshold(mut self, min_suppression_threshold: f32) -> Self {
+        self.min_suppression_threshold = min_suppression_threshold;
+        self
+    }
+
     /// Use the build options to create a new task instance.
     #[inline]
-    pub fn finalize(mut self) -> Result<HandDetector, crate::Error> {
-        if self.num_hands == 0 {
+    pub fn finalize(mut self) -> Result<FaceDetector, crate::Error> {
+        if self.num_faces == 0 {
             return Err(crate::Error::ArgumentError(
-                "The number of max hands cannot be zero".into(),
+                "The number of max faces cannot be zero".into(),
             ));
         }
         let buf = base_task_options_check_and_get_buf!(self);
@@ -74,10 +84,11 @@ impl HandDetectorBuilder {
 
         // generate anchors
         // todo: read info from metadata
-        let num_box = 2016;
+        let num_box = 896;
         let width = img_info.width();
         let height = img_info.height();
         let anchors = SsdAnchorsBuilder::new(width, height, 0.1484375, 0.75, 4)
+            .interpolated_scale_aspect_ratio(1.0)
             .anchor_offset_x(0.5)
             .anchor_offset_y(0.5)
             .strides(vec![8, 16, 16, 16])
@@ -94,7 +105,7 @@ impl HandDetectorBuilder {
         let input_tensor_type =
             model_resource_check_and_get_impl!(model_resource, input_tensor_type, 0);
 
-        return Ok(HandDetector {
+        return Ok(FaceDetector {
             build_options: self,
             model_resource,
             graph,
