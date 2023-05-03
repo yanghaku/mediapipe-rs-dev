@@ -33,6 +33,7 @@
 * [x] Gesture Recognition
 * [x] Hand Landmark Detection
 * [x] Image embedding
+* [x] Face Detection
 * [x] Audio Classification
 * [x] Text Classification
 

@@ -13,7 +13,7 @@ build_wasmedge_with_nn_tflite() {
   apt update && apt install git software-properties-common libboost-all-dev llvm-14-dev liblld-14-dev cmake ninja-build gcc g++ -y
 
   REPO_CURL="https://github.com/yanghaku/WasmEdge.git"
-  REPO_BRANCH="fix_wasi_nn_tflite_bugs"
+  REPO_BRANCH="wasi_nn_tflite_custom_ops"
 
   git clone "${REPO_CURL}"
   pushd WasmEdge
@@ -67,7 +67,20 @@ wasmedge_lib_env_init() {
   ldconfig
 }
 
+mediapipe_custom_ops_init() {
+  url_base="https://github.com/yanghaku/mediapipe-custom-ops/releases/download"
+  tag="v0.0.1"
+  dl_filename="mediapipe_custom_ops-tf2.6.0-0.0.1-manylinux2014_x86_64.tar.gz"
+
+  curl -sLO "${url_base}/${tag}/${dl_filename}"
+  tar -zxvf "${dl_filename}"
+  rm "${dl_filename}"
+
+  mv "${WASMEDGE_WASINN_CUSTOM_OPS_LIBNAME}" "${WASMEDGE_PLUGIN_WASI_NN_TFLITE_CUSTOM_OPS_PATH}"
+}
+
 build_wasmedge_with_nn_tflite
 #wasmedge_with_nn_init
 #wasmedge_tflite_deps_init
 # wasmedge_lib_env_init
+mediapipe_custom_ops_init
