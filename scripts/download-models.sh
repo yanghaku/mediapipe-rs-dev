@@ -112,8 +112,12 @@ face_detection_init() {
     mkdir -p "${face_detection_dir}"
     pushd "${face_detection_dir}"
 
-    model_urls=("https://storage.googleapis.com/mediapipe-assets/face_detection_short_range.tflite?generation=1677044301978921"
+    model_urls=("https://storage.googleapis.com/mediapipe-assets/face_detection_short_range.tflite"
     )
+
+    # now models have not be released
+    model_urls=()
+    curl -SL "https://storage.googleapis.com/mediapipe-assets/face_detection_short_range.tflite?generation=1677044301978921" -o "face_detection_short_range.tflite"
 
     for url in "${model_urls[@]}"; do
       curl -sLO "${url}"
