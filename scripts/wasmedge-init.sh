@@ -12,8 +12,8 @@ build_wasmedge_with_nn_tflite() {
   # install requirements
   apt update && apt install git software-properties-common libboost-all-dev llvm-14-dev liblld-14-dev cmake ninja-build gcc g++ -y
 
-  REPO_CURL="https://github.com/yanghaku/WasmEdge.git"
-  REPO_BRANCH="wasi_nn_tflite_custom_ops"
+  REPO_CURL="https://github.com/WasmEdge/WasmEdge.git"
+  REPO_BRANCH="master"
 
   git clone "${REPO_CURL}"
   pushd WasmEdge
@@ -83,4 +83,4 @@ build_wasmedge_with_nn_tflite
 #wasmedge_with_nn_init
 #wasmedge_tflite_deps_init
 # wasmedge_lib_env_init
-mediapipe_custom_ops_init
+#mediapipe_custom_ops_init

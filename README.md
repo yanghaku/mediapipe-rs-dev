@@ -1,8 +1,8 @@
 <div align="center">
   <h1><code>MediaPipe-rs</code></h1>
   <p>
-    <a href="https://github.com/yanghaku/mediapipe-rs/actions?query=workflow%3ACI">
-      <img src="https://github.com/yanghaku/mediapipe-rs/workflows/CI/badge.svg" alt="CI status" height="20"/>
+    <a href="https://github.com/WasmEdge/mediapipe-rs/actions?query=workflow%3ACI">
+      <img src="https://github.com/WasmEdge/mediapipe-rs/workflows/CI/badge.svg" alt="CI status" height="20"/>
     </a>
     <a href="https://crates.io/crates/mediapipe-rs">
       <img src="https://img.shields.io/crates/v/mediapipe-rs.svg" alt="crates.io status" height="20"/>
@@ -19,23 +19,26 @@
 
 * **Easy to use**: low-code APIs such as mediapipe-python.
 * **Low overhead**: No unnecessary data copy, allocation, and free during the processing.
-* **Flexible**: Users can use custom media bytes as input, such as ```ndarray```.
+* **Flexible**: Users can use custom media bytes as input.
 * For TfLite models, the library not only supports all models downloaded from [MediaPipe Solutions] but also supports
   **[TF Hub]** models and **custom models** with essential information.
-* Support **multiple model formats**, such as TfLite, PyTorch, and Onnx.
-  The library can **detect it when loading models**.
 
 ### Status
 
 * [x] Object Detection
 * [x] Image Classification
-* [x] Image segmentation
+* [x] Image Segmentation
+* [ ] Interactive Image Segmentation
 * [x] Gesture Recognition
 * [x] Hand Landmark Detection
-* [x] Image embedding
+* [x] Image Embedding
 * [x] Face Detection
+* [ ] Face Landmark Detection
+* [ ] Pose Landmark Detection
 * [x] Audio Classification
 * [x] Text Classification
+* [ ] Text Embedding
+* [ ] Language Detection
 
 ## Task APIs
 

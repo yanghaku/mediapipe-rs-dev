@@ -9,7 +9,7 @@ license-file = "LICENSE"
 readme = "README.md"
 build = "src/build.rs"
 documentation = "https://docs.rs/mediapipe-rs"
-repository = "https://github.com/yanghaku/mediapipe-rs"
+repository = "https://github.com/WasmEdge/mediapipe-rs"
 description = "A Rust library for mediapipe tasks"
 publish = true
 

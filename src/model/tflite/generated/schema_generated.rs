@@ -10710,6 +10710,7 @@ pub mod tflite {
         pub const VT_ELLIPSIS_MASK: flatbuffers::VOffsetT = 8;
         pub const VT_NEW_AXIS_MASK: flatbuffers::VOffsetT = 10;
         pub const VT_SHRINK_AXIS_MASK: flatbuffers::VOffsetT = 12;
+        pub const VT_OFFSET: flatbuffers::VOffsetT = 14;
 
         #[inline]
         pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -10726,6 +10727,7 @@ pub mod tflite {
             builder.add_ellipsis_mask(args.ellipsis_mask);
             builder.add_end_mask(args.end_mask);
             builder.add_begin_mask(args.begin_mask);
+            builder.add_offset(args.offset);
             builder.finish()
         }
 
@@ -10784,6 +10786,17 @@ pub mod tflite {
                     .unwrap()
             }
         }
+        #[inline]
+        pub fn offset(&self) -> bool {
+            // Safety:
+            // Created from valid Table for this object
+            // which contains a valid value in this slot
+            unsafe {
+                self._tab
+                    .get::<bool>(StridedSliceOptions::VT_OFFSET, Some(false))
+                    .unwrap()
+            }
+        }
     }
 
     impl flatbuffers::Verifiable for StridedSliceOptions<'_> {
@@ -10799,6 +10812,7 @@ pub mod tflite {
                 .visit_field::<i32>("ellipsis_mask", Self::VT_ELLIPSIS_MASK, false)?
                 .visit_field::<i32>("new_axis_mask", Self::VT_NEW_AXIS_MASK, false)?
                 .visit_field::<i32>("shrink_axis_mask", Self::VT_SHRINK_AXIS_MASK, false)?
+                .visit_field::<bool>("offset", Self::VT_OFFSET, false)?
                 .finish();
             Ok(())
         }
@@ -10809,6 +10823,7 @@ pub mod tflite {
         pub ellipsis_mask: i32,
         pub new_axis_mask: i32,
         pub shrink_axis_mask: i32,
+        pub offset: bool,
     }
     impl<'a> Default for StridedSliceOptionsArgs {
         #[inline]
@@ -10819,6 +10834,7 @@ pub mod tflite {
                 ellipsis_mask: 0,
                 new_axis_mask: 0,
                 shrink_axis_mask: 0,
+                offset: false,
             }
         }
     }
@@ -10857,6 +10873,11 @@ pub mod tflite {
             );
         }
         #[inline]
+        pub fn add_offset(&mut self, offset: bool) {
+            self.fbb_
+                .push_slot::<bool>(StridedSliceOptions::VT_OFFSET, offset, false);
+        }
+        #[inline]
         pub fn new(
             _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
         ) -> StridedSliceOptionsBuilder<'a, 'b> {
@@ -10881,6 +10902,7 @@ pub mod tflite {
             ds.field("ellipsis_mask", &self.ellipsis_mask());
             ds.field("new_axis_mask", &self.new_axis_mask());
             ds.field("shrink_axis_mask", &self.shrink_axis_mask());
+            ds.field("offset", &self.offset());
             ds.finish()
         }
     }

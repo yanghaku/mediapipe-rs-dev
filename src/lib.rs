@@ -5,11 +5,9 @@
 //!
 //! * **Easy to use**: low-code APIs such as mediapipe-python.
 //! * **Low overhead**: No unnecessary data copy, allocation, and free during the processing.
-//! * **Flexible**: Users can use custom media bytes as input, such as ```ndarray```.
+//! * **Flexible**: Users can use custom media bytes as input.
 //! * For TfLite models, the library not only supports all models downloaded from [MediaPipe Solutions](https://developers.google.com/mediapipe/solutions/)
 //!   but also supports **[TF Hub](https://tfhub.dev/)** models and **custom models** with essential information.
-//! * Support **multiple model formats**, such as TfLite, PyTorch, and Onnx.
-//!   The library can **detect it when loading models**.
 //!
 //! ## Task APIs
 //!
